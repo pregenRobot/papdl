@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "papdl"
+version = "0.1.0"
+description = "Tool to distribute DNN training and inference over a cluster of compute servers"
+authors = ["Tamim Azmain <maat1@st-andrews.ac.uk>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "^1.23.3"
+pandas = "^1.5.0"
+pyyaml = "^6.0"
+keras = "^2.10.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
