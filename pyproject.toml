@@ -6,12 +6,15 @@ authors = ["Tamim Azmain <maat1@st-andrews.ac.uk>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9,<3.11"
 numpy = "^1.23.3"
 pandas = "^1.5.0"
 pyyaml = "^6.0"
-keras = "^2.10.0"
+tensorflow = "^2.10.0"
 
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.1.3"
 
 [build-system]
 requires = ["poetry-core"]
