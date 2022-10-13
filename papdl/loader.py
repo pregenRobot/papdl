@@ -14,7 +14,7 @@ class Loader:
             self.model = keras.models.load_model(path)
         else:
             self.model_path = os.path.abspath(model_path)
-            self.model = kerasmodels.load_model(model_path)
+            self.model = keras.models.load_model(model_path)
         self.create_valid_splits()
 
     # Navigates the model structure to find regions without parallel paths, returns valid split locations
