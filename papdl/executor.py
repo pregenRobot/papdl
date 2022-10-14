@@ -19,5 +19,6 @@ model = keras.Sequential([
 
 l = Loader(load_type="object", reference=model)
 
-for network in l.sliced_network:
-    network.summary()
+l.sliced_network[-1].summary()
+print(l.sliced_weights[-1][0])
+print(l.sliced_weights[-1][0].shape)

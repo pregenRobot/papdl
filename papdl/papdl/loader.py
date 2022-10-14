@@ -1,11 +1,9 @@
-from distutils.command.build_scripts import first_line_re
-import pickle
-import tensorflow as tf
 import os
 from typing import *
 import keras
 from keras.engine import functional
 from keras import models,layers
+import numpy as np
 
 class Loader:
 
@@ -28,6 +26,7 @@ class Loader:
         valid_splits = self.__create_valid_splits()
 
         self.sliced_network: List[models.Model] = []
+        self.sliced_weights: List = []
         for i, split_point in enumerate(valid_splits):
             if i == 0:
                 first_point = 0
@@ -36,6 +35,7 @@ class Loader:
             
             new_model = self.__get_model(first_point, split_point)
             self.sliced_network.append(new_model)
+            self.sliced_weights.append(new_model.get_weights())
 
     def __create_valid_splits(self) -> List[int]:
         model = self.model
