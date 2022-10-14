@@ -15,3 +15,6 @@ ENV PATH="/home/${local_user}/.local/bin:${PATH}"
 RUN mkdir server
 WORKDIR /home/${local_user}/server
 COPY server.py /home/${local_user}/server/server.py
+
+ENTRYPOINT ["python3", "/home${local_user}/server/server.py"]
+

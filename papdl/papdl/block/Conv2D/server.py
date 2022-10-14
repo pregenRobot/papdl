@@ -43,8 +43,9 @@ async def server(ws, path, forward_ws, back_ws, stop_ws):
             os.kill(os.getpid(), "SIGTERM")
 
 async def main():
+    
+    # OPEN relevant connections
     connected = set()
-
     front_uri = f"ws://{FRONT_HOST}:{FRONT_PORT}"
     back_uri = f"ws://{BACK_HOST}:{BACK_PORT}"
     front_sender = websockets.connect(f"{front_uri}/forward")
@@ -54,10 +55,11 @@ async def main():
     connected.add(back_sender)
     connected.add(stop_sender)
 
+    # Define server handler
     server_handler = functools.partial(server, front_ws = front_sender, back_ws = back_sender, stop_ws = stop_sender)
-    loop = asyncio.get_event_loop()
 
     # Create server
+    loop = asyncio.get_event_loop()
     start_server = websockets.serve(server_handler, SELF_HOST, SELF_PORT)
     server_instance = loop.run_until_complete(start_server)
 
