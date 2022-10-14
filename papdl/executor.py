@@ -16,6 +16,8 @@ model = keras.Sequential([
     layers.Dropout(0.5),
     layers.Dense(num_classes, activation="softmax"),
 ])
+
 l = Loader(load_type="object", reference=model)
-model.summary()
-print(l.valid_splits)
+
+for network in l.sliced_network:
+    network.summary()
