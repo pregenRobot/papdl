@@ -1,20 +1,18 @@
 
 FROM nvcr.io/nvidia/tensorflow:22.05-tf2-py3
  
-ARG local_uid
-ARG local_user
 
-RUN adduser --uid ${local_uid} --gecos "" --disabled-password ${local_user}
+USER root
+ENV PATH="/root/.local/bin:${PATH}"
 
-WORKDIR /home/${local_user}
+RUN mkdir /home/app
+WORKDIR /home/app
 
-USER ${local_user}
+COPY requirements.txt /home/requirements.txt
+RUN pip3 install --user --upgrade pip
+RUN pip3 install --user -r /home/requirements.txt
 
-ENV PATH="/home/${local_user}/.local/bin:${PATH}"
+RUN echo $PATH
+RUN which watchmedo
 
-RUN mkdir server
-WORKDIR /home/${local_user}/server
-COPY server.py /home/${local_user}/server/server.py
-
-ENTRYPOINT ["python3", "/home${local_user}/server/server.py"]
-
+# ENTRYPOINT [ "watchmedo", "auto-restart", "--pattern", "*.py", "--recursive", "--signal" "SIGTERM", "--directory", "/home/app", "python3", "/home/app/server.py"]

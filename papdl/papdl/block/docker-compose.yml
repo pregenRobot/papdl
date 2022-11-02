@@ -1,0 +1,12 @@
+version: "3.3"
+
+services:
+  conv2d:
+    build:
+      context: Conv2D
+    ports:
+      - "8765:8765"
+      - "8766:8766"
+    volumes:
+      - ./Conv2D/app:/home/app
+    entrypoint: watchmedo auto-restart --pattern "*.py" --recursive --signal SIGTERM --directory "/home/app" python3 /home/app/server.py

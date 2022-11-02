@@ -4,3 +4,6 @@ pyyaml
 tensorflow
 pytest
 keras
+asyncio
+websockets
+termcolor
