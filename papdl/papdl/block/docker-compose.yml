@@ -10,3 +10,13 @@ services:
     volumes:
       - ./Conv2D/app:/home/app
     entrypoint: watchmedo auto-restart --pattern "*.py" --recursive --signal SIGTERM --directory "/home/app" python3 /home/app/server.py
+
+  dense_1:
+    build:
+      context: Dense
+    ports:
+      - "8765:8765"
+      - "8766:8766"
+    volumes:
+      - ./Dense/app:/home/app
+    entrypoint: watchmedo auto-restart --pattern "*.py" --recursive --signal SIGTERM --directory "/home/app" python3 /home/app/server.py
