@@ -1,0 +1,67 @@
+services:
+  dense_1:
+    build:
+      context: ./containers/Dense
+    entrypoint: watchmedo auto-restart --pattern "*.py" --recursive --signal SIGTERM
+      --directory "/home/app" python3 /home/app/server.py
+    environment:
+    - BACKWARD_URL=0.0.0.0
+    - BACKWARD_PORT=60511
+    - FORWARD_URL=0.0.0.0
+    - FORWARD_PORT=51699
+    ports:
+    - 8765:44007
+    - 8766:47137
+    volumes:
+    - /home/maat1/Documents/cs4099/papdl-root/tests/fleetingness/volumes/dense_1/model:/home/model
+    - /home/maat1/Documents/cs4099/papdl-root/tests/fleetingness/containers/Dense/app:/home/app
+  dense_2:
+    build:
+      context: ./containers/Dense
+    entrypoint: watchmedo auto-restart --pattern "*.py" --recursive --signal SIGTERM
+      --directory "/home/app" python3 /home/app/server.py
+    environment:
+    - BACKWARD_URL=0.0.0.0
+    - BACKWARD_PORT=47137
+    - FORWARD_URL=0.0.0.0
+    - FORWARD_PORT=36411
+    ports:
+    - 8765:51699
+    - 8766:41343
+    volumes:
+    - /home/maat1/Documents/cs4099/papdl-root/tests/fleetingness/volumes/dense_2/model:/home/model
+    - /home/maat1/Documents/cs4099/papdl-root/tests/fleetingness/containers/Dense/app:/home/app
+  dense_3:
+    build:
+      context: ./containers/Dense
+    entrypoint: watchmedo auto-restart --pattern "*.py" --recursive --signal SIGTERM
+      --directory "/home/app" python3 /home/app/server.py
+    environment:
+    - BACKWARD_URL=0.0.0.0
+    - BACKWARD_PORT=41343
+    - FORWARD_URL=0.0.0.0
+    - FORWARD_PORT=40467
+    ports:
+    - 8765:36411
+    - 8766:59823
+    volumes:
+    - /home/maat1/Documents/cs4099/papdl-root/tests/fleetingness/volumes/dense_3/model:/home/model
+    - /home/maat1/Documents/cs4099/papdl-root/tests/fleetingness/containers/Dense/app:/home/app
+  orchestrator:
+    build:
+      context: Orchestrator
+    entrypoint:
+    - watchmedo auto-restart --pattern "*.py" --recursive --signal SIGTERM --directory
+      "/home/app" python3 /home/app.server.py
+    environment:
+    - FORWARD_URL=0.0.0.0
+    - FORWARD_PORT=44007
+    - BACKWARD_URL=0.0.0.0
+    - BACKWARD_PORT=59823
+    ports:
+    - 8765:40467
+    - 8766:60511
+    - 8764:8764
+    volumes:
+    - /home/maat1/Documents/cs4099/papdl-root/tests/fleetingness/containers/Orchestrator/app:/home/app
+version: '3.3'

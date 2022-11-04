@@ -32,14 +32,14 @@ class Generator:
                 "build": {"context":"./containers/Dense"},
                 "ports": ["8765:LOCAL_FORWARD", "8766:LOCAL_BACKWARD"],
                 "environment": [],
-                "volumes": ["./Dense/app:/home/app"],
+                "volumes": [],
                 "entrypoint": "watchmedo auto-restart --pattern \"*.py\" --recursive --signal SIGTERM --directory \"/home/app\" python3 /home/app/server.py"
             },
             "Orchestrator":{
-                "build" : {"context": "Orchestrator"},
-                "ports" : ["8765:LOCAL_FORWARD", "8766:LOCAL_BACKWARD"],
+                "build" : {"context": "./containers/Orchestrator"},
+                "ports" : ["8765:LOCAL_FORWARD", "8766:LOCAL_BACKWARD","8764:8764"],
                 "environment": [],
-                "volumes": ["./Orchestrator/app:/home/app"],
+                "volumes": [],
                 "entrypoint": ["watchmedo auto-restart --pattern \"*.py\" --recursive --signal SIGTERM --directory \"/home/app\" python3 /home/app.server.py"]
             }
         }
@@ -103,7 +103,8 @@ class Generator:
         self.services.append({
             "name": orchestrator_name, 
             "service":orchestrator_service,
-            "model": None
+            "model": None,
+            "layer_type":"Orchestrator"
         })
         
         for i,f in enumerate(loader.sliced_network):
@@ -128,8 +129,6 @@ class Generator:
         for s in self.sockets:
             s["forward"].close()
             s["backward"].close()
-
-        yaml_buff = io.StringIO()
         
         for s in self.services:
             self.model_structure["services"][s["name"]] = s["service"]
@@ -151,25 +150,43 @@ class Generator:
         yaml_buff.seek(0)
         return yaml_buff.read()
 
+    def copy_container(self,cwd,layer_type):
+        service_type_path = os.path.join(self.container_path,layer_type)
+        if not os.path.exists(service_type_path):
+            shutil.copytree(
+                os.path.join(cwd,"containers",layer_type),
+                service_type_path
+            )
+
+    def create_model_volume(self,s):
+        model = s["model"]
+        service_name = s["name"]
+        service_volume_path = os.path.join(self.volume_folder_path,service_name)
+        os.mkdir(service_volume_path)
+        model_path = os.path.join(service_volume_path,"model")
+        model.save(str(model_path))
+        model_volume = f"{model_path}:/home/model"
+        s["service"]["volumes"].append(model_volume)
+
+    def create_app_volume(self,s):
+        layer_type = s["layer_type"]
+        service_type_path = os.path.join(self.container_path,layer_type)
+        app_path = os.path.join(service_type_path,"app")
+        app_volume = f"{app_path}:/home/app"
+        s["service"]["volumes"].append(app_volume)
+        
+
+
     def configure_instance(self):
         cwd = os.path.dirname(os.path.realpath(__file__))
         for s in self.services[1:]:
-            model = s["model"]
-            service_name = s["name"]
             layer_type = s["layer_type"]
-            service_type_path = os.path.join(self.container_path,layer_type)
-            if not os.path.exists(service_type_path):
-                shutil.copytree(
-                    os.path.join(cwd,"containers",layer_type),
-                    service_type_path
-                )
-            
-            service_volume_path = os.path.join(self.volume_folder_path,service_name)
-            os.mkdir(service_volume_path)
-            model_path = os.path.join(service_volume_path,"model")
-            model.save(str(model_path))
-            model_volume = f"{model_path}:/home/app/model"
-            model["service"]["volumes"].append()
+            self.copy_container(cwd,layer_type)
+            self.create_model_volume(s)
+            self.create_app_volume(s)
+        
+        self.copy_container(cwd,"Orchestrator")
+        self.create_app_volume(self.services[0])
         
         with open(os.path.join(self.instance_path,"docker-compose.yml"), "w+") as f:
             f.write(self.generate_docker_compose_yaml())

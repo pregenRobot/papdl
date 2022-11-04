@@ -20,7 +20,7 @@ model = keras.Sequential([
 ])
 
 l = Loader(model)
-cwd = "/home/maat1/Documents/cs4099/papdl-root"
+cwd = "/home/maat1/Documents/cs4099/papdl-root/tests"
 g = Generator(l,test_location=cwd)
 
 
