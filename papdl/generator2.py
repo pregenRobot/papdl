@@ -23,7 +23,7 @@ class Generator:
 
         self.dc_strucutre = {
             "services" : {},
-            "version": "3.3",
+            "version": "2.3",
             "networks":{
                 self.test_name: {
                     "driver": "bridge"
@@ -55,7 +55,14 @@ class Generator:
             "environment": [],
             "volumes": [],
             "networks": [self.test_name],
-            "entrypoint": "python3 -m server"
+            "entrypoint": "python3 -m server",
+            "user": f"{self.local_user}:{self.local_user}", ### BUGGY? idk
+            "shm_size":"1g",
+            "ulimits":{
+                "memlock":-1,
+                "stack":67108864
+            },
+            "runtime": "runc"
         }
     
     def generate_docker_compose(self):

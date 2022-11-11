@@ -1,6 +1,5 @@
 
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
 from papdl.loader import Loader
 from papdl.generator2 import Generator
@@ -15,6 +14,22 @@ input_shape = (1000,100)
 model = keras.Sequential([
     keras.Input(shape=(input_shape[1])),
     layers.Dense(100,activation="relu"),
+    layers.Dense(200,activation="relu"),
+    layers.Dense(300,activation="relu"),
+    layers.Dense(400,activation="relu"),
+    layers.Dense(500,activation="relu"),
+    layers.Dense(600,activation="relu"),
+    layers.Dense(700,activation="relu"),
+    layers.Dense(800,activation="relu"),
+    layers.Dense(900,activation="relu"),
+    layers.Dense(1000,activation="relu"),
+    layers.Dense(900,activation="relu"),
+    layers.Dense(800,activation="relu"),
+    layers.Dense(700,activation="relu"),
+    layers.Dense(600,activation="relu"),
+    layers.Dense(500,activation="relu"),
+    layers.Dense(400,activation="relu"),
+    layers.Dense(300,activation="relu"),
     layers.Dense(200,activation="relu"),
     layers.Dense(100,activation="relu"),
     layers.Dense(num_classes,activation="softmax")
