@@ -5,8 +5,7 @@ USER root
 ENV PATH="/root/.local/bin:${PATH}"
 
 RUN mkdir /home/app
-RUN mkdir /home/model
-WORKDIR /home
+WORKDIR /home/app
 
 # FORWARD RESULT RETURN
 EXPOSE 8765

@@ -14,6 +14,3 @@ class ServerConfig:
         
         self.FORWARD_URL = os.getenv("FORWARD_URL")
         self.FOREWARD_PORT = 8765
-        
-        self.m = k.models.load_model("/home/model")
-        self.m.compile()

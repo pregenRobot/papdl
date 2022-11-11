@@ -22,7 +22,7 @@ async def forward(messages):
 
 async def send_random_data():
     sleep(10)
-    for i in range(1):
+    for i in range(100):
         sample = np.random.random((1,100))
         config.server_logger.info(f"Sending input...")
         while(not conns["forward_out"].connected):

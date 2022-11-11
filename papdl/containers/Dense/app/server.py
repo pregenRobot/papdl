@@ -20,6 +20,7 @@ async def forward(messages):
             sleep(1)
         await conns["forward_out"].send(output)
 
+#### SPAWN WEBSOCKET SERVER AND CLIENT
 conns["forward_in"].serve(forward)
 stop = asyncio.Future()
 loop = asyncio.get_event_loop()

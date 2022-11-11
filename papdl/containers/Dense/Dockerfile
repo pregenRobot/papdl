@@ -6,6 +6,7 @@ USER root
 ENV PATH="/root/.local/bin:${PATH}"
 
 RUN mkdir /home/app
+RUN mkdir /home/model
 WORKDIR /home/app
 
 # FORWARD INPUT

@@ -2,6 +2,8 @@ import numpy as np
 from typing import Callable
 from websockets.client import connect as ws_connect
 from websockets.server import serve as ws_serve
+from time import sleep
+import io
 
 class Wsc():
     def __init__(self, id:str, host:str, port:int,logger):

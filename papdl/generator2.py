@@ -29,25 +29,7 @@ class Generator:
                 }
             }
         }
-        
         self.services = []
-        self.templates = {
-            "Dense": {
-                "build": {"context":"./containers/Dense"},
-                "environment": [],
-                "volumes": [],
-                "networks": [self.test_name],
-                "entrypoint": "watchmedo auto-restart --pattern \"*.py\" --recursive --signal SIGTERM --directory \"/home/app\" python3 /home/app/server.py"
-            },
-            "Orchestrator":{
-                "build" : {"context": "./containers/Orchestrator"},
-                "environment": [],
-                "volumes": [],
-                "networks": [self.test_name],
-                "entrypoint": "watchmedo auto-restart --pattern \"*.py\" --recursive --signal SIGTERM --directory \"/home/app\" python3 /home/app/server.py"
-            }
-        }
-        
         self.generate_docker_compose()
         self.create_instance()
         self.configure_instance()
@@ -58,16 +40,25 @@ class Generator:
         prev_service = self.services[-2]["service"]
         
         prev_service["environment"].append(f"FORWARD_URL={current_service['container_name']}")
-        
+    
+    def create_service(self, layer_type:str, name:str):
+        return {
+            "container_name":name,
+            "build": {"context":f"./containers/{layer_type}"},
+            "environment": [],
+            "volumes": [],
+            "networks": [self.test_name],
+            "entrypoint": "python3 -m server"
+        }
     
     def generate_docker_compose(self):
         loader:Loader = self.loader
         if loader == None:
             exit("Loader was uninitialized")
         
-        orchestrator_service = deepcopy(self.templates["Orchestrator"])
-        orchestrator_name = "orchestrator"
-        orchestrator_service["container_name"] = orchestrator_name
+        orchestrator_name = f"{self.test_name}_orchestrator"
+        orchestrator_service = self.create_service("Orchestrator",orchestrator_name)
+
         self.services.append({
             "service": orchestrator_service,
             "model": None,
@@ -76,9 +67,8 @@ class Generator:
         
         for i,f in enumerate(loader.sliced_network):
             layer_type = f.layers[-1].__class__.__name__
-            service = deepcopy(self.templates[layer_type])
-            service_name = f"{layer_type}_{i+1}".lower()
-            service["container_name"] = service_name
+            service_name = f"{self.test_name}_{layer_type}_{i+1}".lower()
+            service = self.create_service(layer_type,service_name)
             self.services.append({
                 "service": service,
                 "model":f,
