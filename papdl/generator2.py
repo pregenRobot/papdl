@@ -1,10 +1,8 @@
 from papdl.loader import Loader
-from copy import deepcopy
 import io,sys,os,shutil
 import yaml
-from pathlib import Path
 from random_word import RandomWords
-import keras
+import getpass
 
 r = RandomWords()
 
@@ -19,6 +17,9 @@ class Generator:
         self.loader = loader
         self.test_location = test_location
         self.test_name = test_name
+        
+        self.local_uid = os.getuid()
+        self.local_user = getpass.getuser()
 
         self.dc_strucutre = {
             "services" : {},
@@ -44,7 +45,13 @@ class Generator:
     def create_service(self, layer_type:str, name:str):
         return {
             "container_name":name,
-            "build": {"context":f"./containers/{layer_type}"},
+            "build": {
+                "context":f"./containers/{layer_type}",
+                "args":{
+                    "local_user": self.local_user,
+                    "local_uid": self.local_uid
+                }
+            },
             "environment": [],
             "volumes": [],
             "networks": [self.test_name],
@@ -113,14 +120,14 @@ class Generator:
         os.mkdir(service_volume_path)
         model_path = os.path.join(service_volume_path,"model")
         model.save(str(model_path))
-        model_volume = f"{model_path}:/home/model"
+        model_volume = f"{model_path}:/home/{self.local_user}/model"
         s["service"]["volumes"].append(model_volume)
     
     def create_app_volume(self,s):
         layer_type = s["layer_type"]
         service_type_path = os.path.join(self.container_path, layer_type)
         app_path = os.path.join(service_type_path,"app")
-        app_volume = f"{app_path}:/home/app"
+        app_volume = f"{app_path}:/home/{self.local_user}/app"
         s["service"]["volumes"].append(app_volume)
     
     def configure_instance(self):
