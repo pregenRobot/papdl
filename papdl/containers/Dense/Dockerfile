@@ -8,6 +8,9 @@ ENV PATH="/root/.local/bin:${PATH}"
 RUN mkdir /home/app
 WORKDIR /home/app
 
+# FORWARD INPUT
+EXPOSE 8765
+
 COPY requirements.txt /home/requirements.txt
 RUN pip3 install --user --upgrade pip
 RUN pip3 install --user -r /home/requirements.txt

@@ -8,6 +8,12 @@ RUN mkdir /home/app
 RUN mkdir /home/model
 WORKDIR /home
 
+# FORWARD RESULT RETURN
+EXPOSE 8765
+
+# FORWARD INPUT
+EXPOSE 8766
+
 COPY requirements.txt requirements.txt
 RUN pip3 install --user --upgrade pip
 RUN pip3 install --user -r requirements.txt
