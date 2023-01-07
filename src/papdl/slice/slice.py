@@ -1,19 +1,9 @@
-from keras import backend as K
-from keras import layers
-from keras import models
-import numpy as np
+from keras.layers import Input
+from keras.models import Model
 from collections.abc import Iterable
-import time
 from enum import Enum
 from typing import List
 
-class Slice:
-    def __init__(self):
-        self.model = ""
-        self.input_layer = 0
-        self.output_layer = 0
-        self.second_prediction = 0
-        self.output_size = 0
         
 # Recursively gets the output of a layer, used to build up a submodel
 def get_output_of_layer(layer, new_input, starting_layer_name):
@@ -52,12 +42,12 @@ def get_model(input_layer: int, output_layer: int):
     if input_layer == 0:
         new_input = selected_model.input
 
-        return models.Model(new_input, selected_model.layers[output_layer].output)
+        return Model(new_input, selected_model.layers[output_layer].output)
     else:
-        new_input = layers.Input(batch_shape=selected_model.get_layer(starting_layer_name).get_input_shape_at(0))
+        new_input = Input(batch_shape=selected_model.get_layer(starting_layer_name).get_input_shape_at(0))
 
     new_output = get_output_of_layer(selected_model.layers[output_layer], new_input, starting_layer_name)
-    model = models.Model(new_input, new_output)
+    model = Model(new_input, new_output)
 
     return model
 
@@ -91,18 +81,24 @@ def create_valid_splits():
 
 selected_model = None
 
-class SplitStrategy(Enum):
-    ATOMIC = 1
-    SCISSION = 2
-    SCISSION_TL = 3
 
-def slice_model(model: models.Model, strategy: SplitStrategy) :
+class Slice:
+    def __init__(self):
+        self.model: Model = None
+        self.input_layer = 0
+        self.output_layer = 0
+        self.second_prediction = 0
+        self.output_size = 0
+
+def slice_model(model: Model):
     global selected_model
+    global layer_outputs
+    layer_outputs = {}
     selected_model = model
 
     split_points = create_valid_splits()
     
-    sliced_network = List[Slice] = []
+    sliced_network: List[Slice] = []
 
     for index, split_point in enumerate(split_points):
 
