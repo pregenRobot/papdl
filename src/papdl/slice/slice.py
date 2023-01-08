@@ -3,7 +3,6 @@ from keras.models import Model
 from collections.abc import Iterable
 from enum import Enum
 from typing import List
-
         
 # Recursively gets the output of a layer, used to build up a submodel
 def get_output_of_layer(layer, new_input, starting_layer_name):
@@ -90,7 +89,7 @@ class Slice:
         self.second_prediction = 0
         self.output_size = 0
 
-def slice_model(model: Model):
+def slice_model(model: Model)->List[Slice]:
     global selected_model
     global layer_outputs
     layer_outputs = {}

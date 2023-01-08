@@ -1,4 +1,4 @@
-from .configure import ServerConfig
+from configure import ServerConfig
 from time import time
 import numpy as np
 
@@ -15,8 +15,8 @@ for i in range(number_of_repeats):
    config.m.predict(sample_input)
    end = time()
    duration = end - start
-   result.append(duration)
+   result.append(str(duration))
 
-print(result.join(","))
+print(",".join(result))
 print("==FINISH==")
    

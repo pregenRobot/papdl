@@ -2,7 +2,7 @@ FROM tensorflow/tensorflow
 
 ARG local_uid
 ARG local_user
-ARG model
+# ARG model
 
 RUN adduser --uid ${local_uid} --gecos "" --disabled-password ${local_user}
 
@@ -14,7 +14,8 @@ RUN mkdir /home/${local_user}/app
 WORKDIR /home/${local_user}/app
 
 ADD app /home/${local_user}/app
-COPY ${model} /home/${local_user}/model
+# COPY ${model} /home/${local_user}/model
+COPY model /home/${local_user}/model
 
 # FORWARD INPUT
 EXPOSE 8765

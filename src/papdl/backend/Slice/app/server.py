@@ -1,8 +1,8 @@
 import os, asyncio, signal
-from .wsc import Wsc
+from wsc import Wsc
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '3'
 from time import sleep
-from .configure import ServerConfig
+from configure import ServerConfig
 
 config = ServerConfig()
 
