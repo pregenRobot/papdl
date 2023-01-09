@@ -1,6 +1,5 @@
 import docker
 import os
-from enum import Enum
 import getpass
 
 from docker.models.nodes import Node
@@ -13,16 +12,20 @@ from docker.types import RestartPolicy
 from typing import List
 from random_word import RandomWords
 import tempfile
+from .common import Command
 
 from ..slice.slice import Slice
 from shutil import copytree,rmtree,copyfile
-
-class Command(Enum):
-    SERVER = "server"
-    BENCHMARK = "benchmark"
+from .common import Preferences
 
 class PapdlAPI:
-    def __init__(self, context_name = RandomWords().get_random_word()):
+    def __init__(self, preference:Preferences, context_name = None):
+        context_name:str
+        if context_name == None:
+            r = RandomWords()
+            context_name = r.get_random_word()
+        
+        self.logger = preference["logger"]
         self.client = docker.from_env()
         self.dircontext = {}
         self.local_user = getpass.getuser()
@@ -43,7 +46,7 @@ class PapdlAPI:
         # [self.client.images.remove(image.tags[0]) for image in self.cleanup_target["images"]]
         
     def build_orchestrator(self) -> Image:
-        print("Building Orchestrator")
+        self.logger.info("Building orchestrator...")
         path = os.path.join(self.dircontext["api_module_path"], "Orchestrator")
         name = f"{self.context_name}-orchestrator"
         image = self.client.images.build(path,
@@ -57,6 +60,7 @@ class PapdlAPI:
     
     
     def prepare_slice_build(self, slice:Slice) -> str:
+        self.logger.info(f"Prepareing build for slice {slice.model.name}")
         model = slice.model
         build_context = tempfile.mkdtemp() 
         self.cleanup_target["tempfolders"].append(build_context)
@@ -82,25 +86,30 @@ class PapdlAPI:
 
     # def build_slice(self, model_path: str, id:str)->Image:
     def build_slice(self, slice: Slice, id: str)->Image:
-
         tag = f"{self.context_name}-slice-{id}"
         buildargs={
             "local_user": self.local_user,
             "local_uid": str(self.local_uid),
         }
         build_context = self.prepare_slice_build(slice)
+        self.logger.info(f"Building slice {slice.model.name} with context {build_context}")
 
-        print(f"Building Model {tag} : {build_context} with arguments {buildargs}")
-
-        image = self.client.images.build(
+        image, build_logs = self.client.images.build(
             path=build_context,
             tag=tag,
             buildargs=buildargs
-        )[0]
+        )
+        
+        for chunk in build_logs:
+            if 'stream' in chunk:
+                for line in chunk['stream'].splitlines():
+                    self.logger.debug(line)
+        
         self.cleanup_target["images"].append(image)
         return image
     
     def available_devices(self)->List[Node]:
+        self.logger.info("Fetching available devices in swarm...")
         return self.client.nodes.list()
 
     def container_built(self,hash:str, tag:str) -> bool:
@@ -118,6 +127,7 @@ class PapdlAPI:
         restart_policy:RestartPolicy
     ) -> Service:
         image_name = image.tags[0].split(":")[0]
+        self.logger.info(f"Spawning service for image {image_name}")
         
         service = self.client.services.create(
             image=image_name,

@@ -17,6 +17,5 @@ for i in range(number_of_repeats):
    duration = end - start
    result.append(str(duration))
 
-print(",".join(result))
-print("==FINISH==")
+print("[BENCHMARK]" + ",".join(result))
    
