@@ -1,20 +1,52 @@
 from enum import Enum
 from typing import TypedDict
 from keras.models import Model
-# from logging import Logger,Formatter,DEBUG,INFO,WARNING,ERROR,CRITICAL,NOTSET
-# from logging import getLogger,Logger,DEBUG,StreamHandler, Handler
 import tqdm
 import logging
 from colorama import Fore,Style
+from time import time,sleep
+from threading import Thread
 
-class SliceBehaviourException(Exception):
+class LoadingBar():
+    bar = [
+        " [=     ]",
+        " [ =    ]",
+        " [  =   ]",
+        " [   =  ]",
+        " [    = ]",
+        " [     =]",
+        " [    = ]",
+        " [   =  ]",
+        " [  =   ]",
+        " [ =    ]",
+    ]
+    i = 0
+    
+    def loop(self):
+        while self.animate:
+            print(self.bar[self.i%len(self.bar)],end="\r")
+            self.i+=1
+            sleep(.1)
+            self.i+=1
+    
+    def start(self):
+        self.animate = True
+        self.t = Thread(target=self.loop)
+        self.t.start()
+    
+    def stop(self):
+        self.animate = False
+        
+
+class ContainerBehaviourException(Exception):
     def __init__(self, message:str):
         self.message = message
         super().__init__(self.message)
-
-class Command(Enum):
-    SERVER = "server"
-    BENCHMARK = "benchmark"
+    
+class AppType(Enum):
+    ORCHESTRATOR = "Orchestrator"
+    BENCHMARKER = "Benchmarker"
+    SLICE = "Slice"
 
 class Slice:
     def __init__(self):
