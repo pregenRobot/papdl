@@ -10,12 +10,13 @@ from docker.models.networks import Network
 from docker.types import RestartPolicy
 
 from typing import List,Generator,Dict,TypedDict
-from random_word import RandomWords
 import tempfile
 
 from ..slice.slice import Slice
 from shutil import copytree,rmtree,copyfile
 from .common import Preferences,AppType,LoadingBar
+from random import random
+from math import floor
 
 class CleanupTarget(TypedDict):
     tempfolders:List[str]
@@ -26,8 +27,8 @@ class PapdlAPI:
     def __init__(self, preference:Preferences, project_name = None):
         project_name:str
         if project_name == None:
-            r = RandomWords()
-            project_name = r.get_random_word()
+            # UNIX ONLY
+            project_name = open("/usr/share/dict/words").readlines()[floor(random()*235886)][:-1]
         
         self.logger = preference["logger"]
         self.client = docker.from_env()

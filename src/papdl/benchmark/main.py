@@ -23,7 +23,6 @@ def benchmark_slices(slice_list: List[Slice]) -> Dict[str,Dict[str,float]]:
     else:
         raise NotImplementedError
 
-
 def read_benchmark_results(service:Service)->Dict[str,float]:
     global preferences
     log_read_start = time() 
@@ -83,7 +82,8 @@ def scission_strategy(slice_list: List[Slice])->Dict[str,Dict[str,float]]:
     except DockerException as e:
         preferences['logger'].error("Docker Exception occured. Have you startd the client?")
     finally:
-        api.cleanup()
+        if api is not None:
+            api.cleanup()
     return statistics
  
 def get_optimal_slices(slice_list: List[Slice], arg_preferences: Preferences):
