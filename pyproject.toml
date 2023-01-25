@@ -22,6 +22,7 @@ docker = "^6.0.1"
 random-word = "^1.0.11"
 tqdm = "^4.64.1"
 colorama = "^0.4.6"
+pyopenssl = "^23.0.0"
 
 [tool.poetry.scripts]
 papdl = "papdl.cli:main"

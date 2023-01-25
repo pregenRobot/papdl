@@ -1,34 +1,53 @@
 import docker
-import os
+import os,sys
 import getpass
+
+from copy import deepcopy
+
+from OpenSSL import crypto, SSL
 
 from docker.models.nodes import Node
 from docker.models.services import Service
 from docker.models.images import Image
 from docker.models.containers import Container
 from docker.models.networks import Network
-from docker.types import RestartPolicy
+from docker.models.secrets import Secret
+from docker.types import RestartPolicy,EndpointSpec
 
-from typing import List,Generator,Dict,TypedDict
+from typing import List,Generator,Dict,TypedDict,Tuple
 import tempfile
 
 from ..slice.slice import Slice
 from shutil import copytree,rmtree,copyfile
 from .common import Preferences,AppType,LoadingBar
-from random import random
+from random import random,randint
 from math import floor
+from random_word import RandomWords
 
 class CleanupTarget(TypedDict):
     tempfolders:List[str]
     images:List[Image]
     services:List[Service]
 
+class CertSpecs(TypedDict):
+    C:str
+    ST:str
+    L:str
+    O:str
+    OU:str
+    CN:str
+    emailAddress:str
+    validity_seconds:int
+    
+
 class PapdlAPI:
-    def __init__(self, preference:Preferences, project_name = None):
+    def __init__(self, preference:Preferences, project_name = None, certSubject:CertSpecs=None):
         project_name:str
+        r = RandomWords()
         if project_name == None:
-            # UNIX ONLY
-            project_name = open("/usr/share/dict/words").readlines()[floor(random()*235886)][:-1]
+            # MACOS
+            # project_name = open("/usr/share/dict/words").readlines()[floor(random()*235886)][:-1]
+            project_name = r.get_random_word()
         
         self.logger = preference["logger"]
         self.client = docker.from_env()
@@ -38,8 +57,78 @@ class PapdlAPI:
         self.project_name = project_name
         self.loadingBar = LoadingBar()
         self.dircontext["api_module_path"] = os.path.dirname(os.path.abspath(__file__))
-
         self.cleanup_target = CleanupTarget(tempfolders=[],images=[],services=[])
+        
+        if(certSubject == None):
+            self.cert_specs = CertSpecs(
+                C="UK",
+                ST="Fife",
+                L="St. Andrews",
+                O="University of St Andrews",
+                OU="School of Computer Science",
+                CN=getpass.getuser(),
+                emailAddress=f"{getpass.getuser()}@st-andrews.ac.uk",
+                validity_seconds=10*365*24*60*60
+            )
+    
+    def cert_gen(self,cert_path:os.PathLike, key_path:os.PathLike):
+        k = crypto.PKey()
+        k.generate_key(crypto.TYPE_RSA, 4096)
+        cert = crypto.X509()
+        cert.get_subject().C = self.cert_specs["C"]
+        cert.get_subject().ST = self.cert_specs["ST"]
+        cert.get_subject().L = self.cert_specs["L"]
+        cert.get_subject().O = self.cert_specs["O"]
+        cert.get_subject().OU = self.cert_specs["OU"]
+        cert.get_subject().CN = self.cert_specs["CN"]
+        cert.get_subject().emailAddress = self.cert_specs["emailAddress"]
+        cert.set_serial_number(randint(1,sys.maxsize - 1))
+        cert.gmtime_adj_notBefore(0)
+        cert.gmtime_adj_notAfter(self.cert_specs["validity_seconds"])
+        cert.set_issuer(cert.get_subject())
+        cert.set_pubkey(k)
+        cert.sign(k,'sha256')
+
+        with open(cert_path, "wt") as f:
+            f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode("utf-8"))
+        
+        with open(key_path, "wt") as f:
+            f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k).decode("utf-8"))
+    
+    def secret_gen(self) ->Tuple(Secret,Secret):
+        cert_path = os.path.join(self.dircontext["api_module_path"],"certificates", "registry.crt")
+        key_path = os.path.join(self.dircontext["api_module_path"], "certificates", "registry.key")
+        if(not (os.path.isfile(cert_path) and os.path.isfile(key_path))):
+            self.cert_gen(cert_path,key_path)
+            
+        docker_certs = list(map(lambda cert: cert.name , self.client.secrets.list()))
+        
+        
+        if('registry.crt' not in docker_certs or 'registry.key' not in docker_certs):
+            cert_data:str = b""
+            key_data:str = b""
+            
+            with open(cert_path, "rb") as f:
+                cert_data = f.read()
+            
+            with open(key_path, "rb") as f:
+                key_data = f.read()
+
+            registry_crt = self.client.secrets.create(name="registry.crt",data=cert_data)
+            registry_key = self.client.secrets.create(name="registry.key",data=key_data)
+            
+            return(registry_crt,registry_key)
+        else:
+            registry_crt = list(filter(lambda s: s.name=="registry.crt",docker_certs))
+            registry_key = list(filter(lambda s: s.name=="registry.key",docker_certs))
+            
+            return (registry_crt, registry_key)
+    
+    def assign_registry_node(self):
+        manager_node = self.client.nodes.list(filters={'role':'manager'})[0]
+        manager_node_spec = deepcopy(manager_node.attrs['Spec'])
+        manager_node_spec["Labels"]["registry"] = 'true'
+        manager_node.update(manager_node_spec)
     
     def cleanup(self):
         # self.logger.debug([folder for folder in self.cleanup_target["tempfolders"]])
@@ -50,7 +139,6 @@ class PapdlAPI:
         # [service.remove() for service in self.cleanup_target["services"]]
         # self.cleanup_target = CleanupTarget(tempfolders=[],images=[],services=[])
         pass
-        
         
     def build_orchestrator(self) -> Image:
         self.logger.info("Building orchestrator...")
@@ -159,6 +247,32 @@ class PapdlAPI:
     def available_devices(self)->List[Node]:
         self.logger.info("Fetching available devices in swarm...")
         return self.client.nodes.list()
+
+    def spawn_distributer(self):
+        self.client.images.pull("registry",tag="latest")
+        self.assign_registry_node()
+        crt,key = self.secret_gen()
+
+        registry_volume_path = os.path.join(self.dircontext['api_module_path'], 'registry_volume')
+        self.client.services.create(
+            image="registry",
+            name="registry",
+            secrets=[
+                crt,key
+            ],
+            constraints=[f"node.labels.registry==true"],
+            mounts=[
+                f"type=bind,src={registry_volume_path},dst=/var/lib/registry"
+            ],
+            env=[
+                "REGISTRY_HTTP_ADDR=0.0.0.0:443"
+                "REGISTRY_HTTP_TLS_CERTIFICATE=/run/secrets/registry.crt"
+                "REGISTR|Y_HTTP_TLS_KEY=/run/secrets/registry.key"
+            ],
+            maxreplicas=1,
+            endpoint_spec=EndpointSpec(ports={"443","443"}),
+            user=f"{self.local_user}:{self.local_user}"
+        )
 
     def spawn(
         self,

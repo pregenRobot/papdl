@@ -91,7 +91,9 @@ def get_optimal_slices(slice_list: List[Slice], arg_preferences: Preferences):
     global loadingBar
     loadingBar = LoadingBar()
     preferences = arg_preferences
-    benchmark_result = benchmark_slices(slice_list)
-    print(benchmark_result)
+    # benchmark_result = benchmark_slices(slice_list)
+    # print(benchmark_result)
+    api = PapdlAPI(arg_preferences)
+    api.secret_gen()
     ## Perform scission optimisation
     
