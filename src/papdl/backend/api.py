@@ -12,7 +12,7 @@ from docker.models.images import Image
 from docker.models.containers import Container
 from docker.models.networks import Network
 from docker.models.secrets import Secret
-from docker.types import RestartPolicy,EndpointSpec
+from docker.types import RestartPolicy,EndpointSpec,TaskTemplate,SecretReference
 
 from typing import List,Generator,Dict,TypedDict,Tuple
 import tempfile
@@ -23,6 +23,8 @@ from .common import Preferences,AppType,LoadingBar
 from random import random,randint
 from math import floor
 from random_word import RandomWords
+
+import urllib.parse
 
 class CleanupTarget(TypedDict):
     tempfolders:List[str]
@@ -95,16 +97,16 @@ class PapdlAPI:
         with open(key_path, "wt") as f:
             f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k).decode("utf-8"))
     
-    def secret_gen(self) ->Tuple(Secret,Secret):
+    def secret_gen(self):
         cert_path = os.path.join(self.dircontext["api_module_path"],"certificates", "registry.crt")
         key_path = os.path.join(self.dircontext["api_module_path"], "certificates", "registry.key")
         if(not (os.path.isfile(cert_path) and os.path.isfile(key_path))):
             self.cert_gen(cert_path,key_path)
             
-        docker_certs = list(map(lambda cert: cert.name , self.client.secrets.list()))
+        docker_cert_names = list(map(lambda cert: cert.name , self.client.secrets.list()))
         
         
-        if('registry.crt' not in docker_certs or 'registry.key' not in docker_certs):
+        if('registry.crt' not in docker_cert_names or 'registry.key' not in docker_cert_names):
             cert_data:str = b""
             key_data:str = b""
             
@@ -117,12 +119,12 @@ class PapdlAPI:
             registry_crt = self.client.secrets.create(name="registry.crt",data=cert_data)
             registry_key = self.client.secrets.create(name="registry.key",data=key_data)
             
-            return(registry_crt,registry_key)
+            return registry_crt,registry_key
         else:
-            registry_crt = list(filter(lambda s: s.name=="registry.crt",docker_certs))
-            registry_key = list(filter(lambda s: s.name=="registry.key",docker_certs))
+            registry_crt = list(filter(lambda s: s.name=="registry.crt",self.client.secrets.list()))[0]
+            registry_key = list(filter(lambda s: s.name=="registry.key", self.client.secrets.list()))[0]
             
-            return (registry_crt, registry_key)
+            return registry_crt, registry_key
     
     def assign_registry_node(self):
         manager_node = self.client.nodes.list(filters={'role':'manager'})[0]
@@ -199,22 +201,28 @@ class PapdlAPI:
         return build_context
 
     def build_benchmark(self, slices: List[Slice])->Image:
-        tag = f"{self.project_name}-build"
+
+        name = f"localhost:443/{self.project_name}/benchmark"
         buildargs={
             "local_user": self.local_user,
             "local_uid": str(self.local_uid),
         }
         build_context = self.prepare_benchmark_build(slices)
-        self.logger.info(f"Building benchmark with context {build_context}")
+
+        self.logger.info(f"Building benchmark with image {name} and context {build_context}")
         self.loadingBar.start()
-        
         image, build_logs = self.client.images.build(
             path=build_context,
-            tag=tag,
+            tag=name,
             buildargs=buildargs
         )
         self.print_docker_logs(build_logs)
         self.cleanup_target["images"].append(image)
+        self.loadingBar.stop()
+
+        self.logger.info(f"Pushing image {name}")
+        self.loadingBar.start()
+        self.client.images.push(name)
         self.loadingBar.stop()
         return image
     
@@ -248,51 +256,63 @@ class PapdlAPI:
         self.logger.info("Fetching available devices in swarm...")
         return self.client.nodes.list()
 
-    def spawn_distributer(self):
+    def spawn_distributer(self)->Service:
+        self.logger.info(f"Spawning Registry service...")
+        self.loadingBar.start()
+
         self.client.images.pull("registry",tag="latest")
         self.assign_registry_node()
         crt,key = self.secret_gen()
 
         registry_volume_path = os.path.join(self.dircontext['api_module_path'], 'registry_volume')
-        self.client.services.create(
+        
+        endpoint_spec = EndpointSpec(ports={443:443})
+
+        sr_crt = SecretReference(secret_id=crt.id, secret_name=crt.name)
+        sr_key = SecretReference(secret_id=key.id, secret_name=key.name)
+
+        service = self.client.services.create(
             image="registry",
             name="registry",
-            secrets=[
-                crt,key
-            ],
             constraints=[f"node.labels.registry==true"],
             mounts=[
-                f"type=bind,src={registry_volume_path},dst=/var/lib/registry"
+                f"{registry_volume_path}:/var/lib/registry"
             ],
             env=[
-                "REGISTRY_HTTP_ADDR=0.0.0.0:443"
-                "REGISTRY_HTTP_TLS_CERTIFICATE=/run/secrets/registry.crt"
-                "REGISTR|Y_HTTP_TLS_KEY=/run/secrets/registry.key"
+                "REGISTRY_HTTP_ADDR=0.0.0.0:443",
+                "REGISTRY_HTTP_TLS_CERTIFICATE=/run/secrets/registry.crt",
+                "REGISTRY_HTTP_TLS_KEY=/run/secrets/registry.key"
             ],
+            secrets=[sr_crt,sr_key],
             maxreplicas=1,
-            endpoint_spec=EndpointSpec(ports={"443","443"}),
-            user=f"{self.local_user}:{self.local_user}"
+            endpoint_spec=endpoint_spec
         )
+        
+        self.cleanup_target["services"].append(service)
+        self.loadingBar.stop()
+        return service
 
     def spawn(
         self,
         image:Image,
-        id:str,
         node:Node,
         restart_policy:RestartPolicy
     ) -> Service:
-        image_name = image.tags[0].split(":")[0]
+        image_name = image.tags[0]
+        print(image_name)
+        print(image.tags)
         self.logger.info(f"Spawning service for image {image_name}")
         
         self.loadingBar.start()
         service = self.client.services.create(
             image=image_name,
             command=f"python3 -m server",
-            name=f"{image_name}-{id}",
+            name=f"{self.project_name}_benchmark_{id}",
             constraints=[f"node.id=={node.id}"],
             user=f"{self.local_user}:{self.local_user}",
             restart_policy=restart_policy
         )
+        
         self.cleanup_target["services"].append(service)
         self.loadingBar.stop()
         return service

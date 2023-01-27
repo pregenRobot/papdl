@@ -71,6 +71,7 @@ def scission_strategy(slice_list: List[Slice])->Dict[str,Dict[str,float]]:
     api:PapdlAPI
     try:
         api = PapdlAPI(preference=preferences)
+        api.spawn_distributer()
         devices = api.available_devices()
         
         benchmark_image = api.build_benchmark(slices=slice_list)
@@ -91,9 +92,7 @@ def get_optimal_slices(slice_list: List[Slice], arg_preferences: Preferences):
     global loadingBar
     loadingBar = LoadingBar()
     preferences = arg_preferences
-    # benchmark_result = benchmark_slices(slice_list)
-    # print(benchmark_result)
-    api = PapdlAPI(arg_preferences)
-    api.secret_gen()
+    benchmark_result = benchmark_slices(slice_list)
+    print(benchmark_result)
     ## Perform scission optimisation
     

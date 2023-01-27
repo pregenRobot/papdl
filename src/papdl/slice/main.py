@@ -5,6 +5,7 @@ import traceback
 from ..benchmark.main import get_optimal_slices
 from ..backend.common import SplitStrategy,Preferences, prepare_logger
 from logging import DEBUG
+import os
 
 
 @click.command()
@@ -17,6 +18,7 @@ def slice(
     output:str,
     strategy:str,
     strategyargs:str):
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     
     model = None
     logger = prepare_logger(DEBUG)

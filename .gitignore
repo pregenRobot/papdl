@@ -1,6 +1,7 @@
 **/__pycache__/*
 dist
 tests
-src/papdl/backend/certificates/registry.crt
-src/papdl/backend/certificates/registry.key
+**/*.crt
+**/*.key
 registry_mount
+src/papdl/backend/registry_volume/docker

@@ -9,16 +9,27 @@ from threading import Thread
 
 class LoadingBar():
     bar = [
-        " [=     ]",
-        " [ =    ]",
-        " [  =   ]",
-        " [   =  ]",
-        " [    = ]",
-        " [     =]",
-        " [    = ]",
-        " [   =  ]",
-        " [  =   ]",
-        " [ =    ]",
+        " [=          ]",
+        " [ =         ]",
+        " [  =        ]",
+        " [   =       ]",
+        " [    =      ]",
+        " [     =     ]",
+        " [      =    ]",
+        " [       =   ]",
+        " [        =  ]",
+        " [         = ]",
+        " [          =]",
+        " [         = ]",
+        " [        =  ]",
+        " [       =   ]",
+        " [      =    ]",
+        " [     =     ]",
+        " [    =      ]",
+        " [   =       ]",
+        " [  =        ]",
+        " [ =         ]",
+        " [=          ]",
     ]
     i = 0
     
@@ -26,7 +37,7 @@ class LoadingBar():
         while self.animate:
             print(self.bar[self.i%len(self.bar)],end="\r")
             self.i+=1
-            sleep(.1)
+            sleep(1)
             self.i+=1
     
     def start(self):
