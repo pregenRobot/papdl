@@ -119,5 +119,6 @@ def prepare_logger(level=logging.NOTSET)->logging.Logger:
 
 class Preferences(TypedDict):
     service_idle_detection: int
+    startup_timeout:int
     split_strategy: SplitStrategy
     logger:logging.Logger

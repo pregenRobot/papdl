@@ -6,7 +6,7 @@ from keras.models import Model, load_model
 from typing import Dict,TypedDict,List
 from json import dumps
 from io import BytesIO
-from os import stat
+from os import stat,environ
 
 def load_all_models()->Dict[str,Model]:
    model_paths = glob(f"/home/{getuser()}/models/*/")
@@ -28,6 +28,9 @@ def load_benchmark_configs():
    # TODO: read from environment variables
    global config
    config = Config(number_of_repeats=10,batch_size=1)
+   
+def load_network_benchmark_ips()->List[str]:
+   return environ.get("PAPDL_WORKERS").split(" ")
 
 def benchmark_time(model:Model)->float:
    global config
@@ -52,20 +55,30 @@ def benchmark_size(model:Model)->float:
    size = stat("fsize.npy").st_size
    return size
 
-class Benchmark(TypedDict):
+class BenchmarkModel(TypedDict):
    benchmark_size:float
    benchmark_time:float
+
+class BenchmarkNetwork(TypedDict):
+   latency:float
+   bandwidth:float
    
-def benchmark()->Dict[str,Benchmark]:
+def benchmark_model()->Dict[str,BenchmarkModel]:
    global config
    models = load_all_models()
    load_benchmark_configs()
-   results:Dict[str,Benchmark] = {}
+   results:Dict[str,BenchmarkModel] = {}
    for i,(name,model) in enumerate(models.items()):
       time = benchmark_time(model)
       size = benchmark_size(model)
-      results[name] = Benchmark(benchmark_time=time,benchmark_size=size)
+      results[name] = BenchmarkModel(benchmark_time=time,benchmark_size=size)
 
    return results
 
-print("[BENCHMARK]" + dumps(benchmark()))
+def benchmark_network()->Dict[str,BenchmarkNetwork]:
+   for ip in load_network_benchmark_ips():
+      
+      
+      
+
+print("[BENCHMARK]" + dumps(benchmark_model()))

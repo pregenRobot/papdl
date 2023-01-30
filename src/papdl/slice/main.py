@@ -35,7 +35,7 @@ def slice(
     sliced_model = slice_model(model)
     
     pref = Preferences(
-        service_idle_detection=100,
+        service_idle_detection=600,
         split_strategy=SplitStrategy.from_str(strategy),
         logger=logger
     )

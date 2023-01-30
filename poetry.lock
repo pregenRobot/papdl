@@ -516,6 +516,20 @@ files = [
 ]
 
 [[package]]
+name = "iperf3"
+version = "0.1.11"
+description = "Python wrapper around iperf3"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "iperf3-0.1.11.tar.gz", hash = "sha256:d50eebbf2dcf445a173f98a82f9c433e0302d3dfb7987e1f21b86b35ef63ce26"},
+]
+
+[package.extras]
+testing = ["iperf3"]
+
+[[package]]
 name = "keras"
 version = "2.11.0"
 description = "Deep learning for humans."
@@ -1529,4 +1543,4 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.11"
-content-hash = "68f0c1db3accaf80fc71581fa68526edc0e9784f7d363ca29759921a1282bd6f"
+content-hash = "5afff9ca64d01c3903ae92b78f28c9723a9933204a1fddaec0024c106bdc4596"
