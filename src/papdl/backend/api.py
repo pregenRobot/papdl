@@ -48,6 +48,8 @@ class PapdlAPI:
         
         node_id_ip_mapping = self.iperf_api.get_node_to_iperf_ip_mapping(iperf_service)
         
+        print(node_id_ip_mapping)
+        
         image = self.benchmark_api.build_benchmark_image(slices)
         node:Node
         deployed_services:Dict[Node,Service] = {}

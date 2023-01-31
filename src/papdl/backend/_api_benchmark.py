@@ -1,7 +1,7 @@
 from docker.models.nodes import Node
 from docker.models.images import Image
 from docker.models.services import Service
-from docker.types import RestartPolicy
+from docker.types import RestartPolicy,NetworkAttachmentConfig
 
 from .api_common import PapdlAPIContext,prepare_build_context,copy_app,print_docker_logs
 from .common import Slice,AppType
@@ -65,6 +65,7 @@ class PapdlBenchmarkAPI:
         self.context.logger.info(f"Spawning service for image {image_name}")
         self.context.loadingBar.start()
         # node_ips = list(map(lambda n: n.attrs["Status"]["Addr"],self.context.devices))
+        nac = NetworkAttachmentConfig(self.context.network.name)
         
         service = self.context.client.services.create(
             image=image_name,
@@ -78,7 +79,8 @@ class PapdlBenchmarkAPI:
                 "papdl":"true",
                 "project_name":self.context.project_name,
                 "type":"benchmark"
-            }
+            },
+            networks=[nac]
         )
         self.context.cleanup_target["services"].append(service)
         self.context.loadingBar.stop()

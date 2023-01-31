@@ -4,7 +4,7 @@ ARG local_uid
 ARG local_user
 RUN adduser --uid ${local_uid} --gecos "" --disabled-password ${local_user}
 RUN apt-get update
-RUN apt-get install -y iperf3
+RUN apt install -y iputils-ping
 USER ${local_user}
 
 ENV PATH="/home/${local_user}/.local/bin:${PATH}"

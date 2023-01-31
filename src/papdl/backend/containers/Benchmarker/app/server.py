@@ -79,23 +79,25 @@ def benchmark_model()->Dict[str,BenchmarkModel]:
 
    return results
 
-def benchmark_network()->List[str]:
-   return load_network_benchmark_ips()
-   
-   # for ip in load_network_benchmark_ips():
-   #    client = iperf3.Client()
-   #    client.duration = 5
-   #    client.server_host_name = ip
-   
-   
-   # benchmark_result[str,float] = {}
-   # for ip in load_network_benchmark_ips():
-   #    client = iperf3.Client()
-   #    client.duration = 1
-   #    client.server_host_name = ip
-   #    client.port = 5201
-   #    iperf3_result = client.run()
-   #    benchmark_result[ip]
+def benchmark_network()->Dict:
+   # return load_network_benchmark_ips()
+   while True:
+      continue
+   result = {}
+   client = iperf3.Client()
+   for ip in load_network_benchmark_ips():
+      client.duration = 1
+      client.server_hostname = ip
+      client.port = 5201
+      r:iperf3.TestResult = client.run()
+      
+      result[ip] = {
+         "sent_bps": r.sent_bps,
+         "recieved_bps":r.received_bps,
+      }
+      
+      print(result[ip])
+   return result
 
 benchmark_result = {
    "model_performance":benchmark_model(),
