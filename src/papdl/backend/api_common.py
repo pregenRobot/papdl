@@ -43,7 +43,14 @@ class PapdlAPIContext:
         self.loadingBar = LoadingBar()
         self.dircontext["api_module_path"] = path.dirname(path.abspath(__file__))
         self.cleanup_target = CleanupTarget(tempfolders=[],images=[],services=[])
-        self.network = self.client.networks.create(name=f"{project_name}_overlay",driver="overlay",labels={"papdl":True,"project_name":self.project_name})
+        self.network = self.client.networks.create(
+            name=f"{project_name}_overlay",
+            driver="overlay",
+            labels={
+                "papdl":"true",
+                "project_name":self.project_name
+            }
+        )
         self.preference = preference
         
         self.devices = self.client.nodes.list()
@@ -79,17 +86,15 @@ def copy_app(context:PapdlAPIContext,app_type:AppType,build_context:str)->str:
         path.join(build_context,"requirements.txt")
     )
 
-def get_papdl_service(context:PapdlAPIContext,labels={},name=None)->List[Service]:
-    query={
-        "labels":{
-            "papdl":"true",
-        }
-    }
-    query["labels"].update(labels)
+def get_papdl_service(context:PapdlAPIContext,labels:Dict[str,str]={},name=None):
+    query = {}
     if name is not None:
         query["name"] = name
-    
-    return context.client.services.list(filter=query)
+    if(len(labels.keys()) != 0):
+        query["label"] = []
+        for k,v in labels.items():
+            query["label"].append(f"{k}={v}")
+    return context.client.services.list(filters=query)
 
 def get_service_status(service:Service)->List[str]:
     return list(map(lambda s: s['Status']['State'], service.tasks()))

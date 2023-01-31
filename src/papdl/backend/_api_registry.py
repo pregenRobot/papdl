@@ -6,12 +6,13 @@ from docker.types import RestartPolicy,EndpointSpec,SecretReference,NetworkAttac
 
 from .api_common import PapdlAPIContext,get_papdl_service
 from .common import Slice,AppType
-from typing import List,TypedDict,Tuple
+from typing import List,TypedDict,Tuple,Dict
 from os import path,mkdir,PathLike
 from random import randint
 from OpenSSL import crypto
 from copy import deepcopy
 import sys
+from pathlib import Path
 
 class PapdlRegistryAPI:
     def __init__(self,context:PapdlAPIContext):
@@ -41,31 +42,45 @@ class PapdlRegistryAPI:
         with open(key_path, "wt") as f:
             f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k).decode("utf-8"))
     
-    def get_docker_secrets(self,labels={},name=None):
-        query = {
-            "labels":{
-                "papdl":"true"
-            },
-        }
-        query["labels"].update(labels)
+    # def get_docker_secrets(self,labels={},name=None):
+    #     query = {
+    #         "label":{
+    #             "papdl":"true"
+    #         },
+    #     }
+    #     query["label"].update(labels)
+    #     print(query)
+    #     if name is not None:
+    #         query["name"] = name
+    #     return self.context.client.secrets.list(filters=query)
+    
+    def get_docker_secrets(self,labels:Dict[str,str]={},name=None):
+        query = {}
         if name is not None:
             query["name"] = name
-        return self.context.client.secrets.list(filters=q)
+        if(len(labels.keys()) != 0):
+            query["label"] = []
+            for k,v in labels.items():
+                query["label"].append(f"{k}={v}")
+        return self.context.client.secrets.list(filters=query)
+        
     
     def secret_gen(self)->Tuple[Secret,Secret]:
         cert_path = path.join(self.context.dircontext["api_module_path"],"certificates","registry.crt")
         key_path = path.join(self.context.dircontext["api_module_path"],"certificates","registry.key")
-        if(not(path.isFile(cert_path) and path.isfile(key_path))):
+        if(not(Path(cert_path).is_file() and Path(key_path).is_file())):
             self.cert_gen(cert_path,key_path)
         
         registry_docker_cert = self.get_docker_secrets(labels={"type":"cert"},name="registry.crt")
-        registry_docker_key = self.get_docker_secrets(labels={"type":"cert"},name="registry.key")
+        registry_docker_key = self.get_docker_secrets(labels={"type":"key"},name="registry.key")
+        print(registry_docker_cert)
+        print(registry_docker_key)
         
         registry_crt:Secret=None
         if(len(registry_docker_cert) == 0):
             with open(cert_path, "rb") as f:
                 cert_data = f.read()
-                registry_crt = self.context.client.secrets.create(name="registry.crt",data=cert_data)
+                registry_crt = self.context.client.secrets.create(name="registry.crt",data=cert_data,labels={"papdl":"true","type":"cert"})
         else:
             registry_crt = registry_docker_cert[0]
 
@@ -73,14 +88,14 @@ class PapdlRegistryAPI:
         if(len(registry_docker_key) == 0):
             with open(key_path, "rb") as f:
                 key_data = f.read()
-                registry_key = self.context.client.secrets.create(name="registry.key",data=key_data)
+                registry_key = self.context.client.secrets.create(name="registry.key",data=key_data,labels={"papdl":"true","type":"key"})
         else:
             registry_key = registry_docker_key[0]
         
         return registry_crt,registry_key
     
     def assign_registry_node(self):
-        manager_node = self.client.nodes.list(filters={'role':"manager"})[0]
+        manager_node = self.context.client.nodes.list(filters={'role':"manager"})[0]
         manager_node_spec = deepcopy(manager_node.attrs["Spec"])
         manager_node_spec["Labels"]["registry"] = 'true'
         manager_node.update(manager_node_spec)
@@ -93,17 +108,17 @@ class PapdlRegistryAPI:
         
         self.context.logger.info(f"Spawning Registry service...")
         self.context.loadingBar.start()
-        self.client.images.pull("registry",tag="latest")
+        self.context.client.images.pull("registry",tag="latest")
         crt,key= self.secret_gen()
-        registry_volume_path = path.join(self.context.dircontext["apit_module_path"], "registry_volume")
+        registry_volume_path = path.join(self.context.dircontext["api_module_path"], "registry_volume")
         endpoint_spec = EndpointSpec(ports={443:443})
         
         sr_crt = SecretReference(secret_id=crt.id,secret_name=crt.name)
         sr_key = SecretReference(secret_id=key.id,secret_name=key.name)
-        rp = RestartPolicy(condition="always")
+        rp = RestartPolicy(condition="any")
         nac = NetworkAttachmentConfig(self.context.network.name)
         
-        service = self.context.services.create(
+        service = self.context.client.services.create(
             image="registry",
             name="registry",
             constraints=[f"node.labels.registry==true"],

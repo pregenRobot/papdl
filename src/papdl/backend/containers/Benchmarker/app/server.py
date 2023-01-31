@@ -7,6 +7,8 @@ from typing import Dict,TypedDict,List
 from json import dumps
 from io import BytesIO
 from os import stat,environ
+import iperf3
+from pythonping import ping
 
 def load_all_models()->Dict[str,Model]:
    model_paths = glob(f"/home/{getuser()}/models/*/")
@@ -27,7 +29,7 @@ config:Config
 def load_benchmark_configs():
    # TODO: read from environment variables
    global config
-   config = Config(number_of_repeats=10,batch_size=1)
+   config = Config(number_of_repeats=100,batch_size=1)
    
 def load_network_benchmark_ips()->List[str]:
    return environ.get("PAPDL_WORKERS").split(" ")
@@ -76,7 +78,22 @@ def benchmark_model()->Dict[str,BenchmarkModel]:
    return results
 
 def benchmark_network()->Dict[str,BenchmarkNetwork]:
+   benchmark_result:Dict[str,float] = {}
    for ip in load_network_benchmark_ips():
+      client = iperf3.Client()
+      client.duration = 5
+      client.server_host_name = ip
+   
+   
+   # benchmark_result[str,float] = {}
+   # for ip in load_network_benchmark_ips():
+   #    client = iperf3.Client()
+   #    client.duration = 1
+   #    client.server_host_name = ip
+   #    client.port = 5201
+   #    iperf3_result = client.run()
+   #    benchmark_result[ip]
+      
       
       
       

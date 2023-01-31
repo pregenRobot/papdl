@@ -37,7 +37,8 @@ def slice(
     pref = Preferences(
         service_idle_detection=600,
         split_strategy=SplitStrategy.from_str(strategy),
-        logger=logger
+        logger=logger,
+        startup_timeout=600
     )
     
     logger.info(f"Calculating Optimal slices with pref: {pref}...") 

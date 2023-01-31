@@ -29,7 +29,7 @@ def scission_strategy(slice_list:List[Slice])->Dict:
     api:PapdlAPI = None
     try:
         api = PapdlAPI(context=PapdlAPIContext(preference=preferences))
-        deployed_services = api.deploy_benchmarkers()
+        deployed_services = api.deploy_benchmarkers(slice_list)
         node:Node
         service:Service
         for node,service in deployed_services:

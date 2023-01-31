@@ -18,6 +18,9 @@ class PapdlAPI:
         self.registry_api = PapdlRegistryAPI(context)
         self.iperf_api = PapdlIperfAPI(context)
     
+    def cleanup(self):
+        pass
+    
     def _deploy_service_with_timeout(self,service_spawner:Callable, service_spawner_args={})->Service:
         service = service_spawner(**service_spawner_args)
         start_time = time()
