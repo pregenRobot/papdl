@@ -9,6 +9,7 @@ from io import BytesIO
 from os import stat,environ
 import iperf3
 from pythonping import ping
+from getpass import getuser
 
 def load_all_models()->Dict[str,Model]:
    model_paths = glob(f"/home/{getuser()}/models/*/")
@@ -66,6 +67,7 @@ class BenchmarkNetwork(TypedDict):
    bandwidth:float
    
 def benchmark_model()->Dict[str,BenchmarkModel]:
+   print(f"Running as: {getuser()} ")
    global config
    models = load_all_models()
    load_benchmark_configs()

@@ -65,10 +65,10 @@ class PapdlBenchmarkAPI:
         self.context.loadingBar.start()
         node_ips = list(map(lambda n: n.attrs["Status"]["Addr"],self.context.devices))
         
-        service = self.client.services.create(
+        service = self.context.client.services.create(
             image=image_name,
             command=f"python3 -m server",
-            name=f"{self.project_name}_benchmark_{node.id}",
+            name=f"{self.context.project_name}_benchmark_{node.id}",
             constraints=[f"node.id=={node.id}"],
             user=f"{self.context.local_user}:{self.context.local_user}",
             restart_policy = RestartPolicy(condition="none"),

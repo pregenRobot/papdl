@@ -40,6 +40,7 @@ def scission_strategy(slice_list:List[Slice])->Dict:
         preferences['logger'].error(e.message)
     except DockerException as e:
         preferences['logger'].error("Docker Exception occured. Have you started the client?")
+        preferences['logger'].error(e)
     finally:
         if api is not None:
             api.cleanup()
