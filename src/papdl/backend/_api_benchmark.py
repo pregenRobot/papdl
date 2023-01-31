@@ -36,7 +36,7 @@ class PapdlBenchmarkAPI:
             "local_user": self.context.local_user,
             "local_uid": str(self.context.local_uid),
         }
-        build_context = self.prepare_benchmark_build(self.context,slices)
+        build_context = self.prepare_benchmark_build(slices)
         
         self.context.logger.info(f"Building benchmark with image {name} and self.context {build_context}")
         self.context.loadingBar.start()

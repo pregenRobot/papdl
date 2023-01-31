@@ -21,18 +21,24 @@ class PapdlAPI:
     def cleanup(self):
         pass
     
+    def _all_match_any_of(_all:List[str],_any:List[str])->bool:
+        return all([True if x in _any else False for x in _all])
+    
     def _deploy_service_with_timeout(self,service_spawner:Callable, service_spawner_args={})->Service:
         service = service_spawner(**service_spawner_args)
+        self.context.logger.info(f"Spawing service {service.name} ...")
+        self.context.loadingBar.start()
         start_time = time()
         while True:
             if time() - start_time > self.context.preference['startup_timeout']:
                 raise ContainerBehaviourException(f"Service {service.name} timed out trying to spawn...")
             else:
                 service_status = get_service_status(service)
-                if service_status in ["running", "complete"]:
+                if PapdlAPI._all_match_any_of(service_status,["running","complete"]):
                     break
-                if service_status in ["failed", "shutdown", "rejected", "orphaned", "remove"]:
+                if PapdlAPI._all_match_any_of(service_status,["failed", "shutdown", "rejected", "orphaned", "remove"]):
                     raise ContainerBehaviourException(f"Service {service.name} was/has {service_status}")
+        self.context.loadingBar.stop()
         return service 
     
     def deploy_benchmarkers(self,slices:List[Slice])->Dict[Node,Service]:

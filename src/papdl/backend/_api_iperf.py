@@ -21,13 +21,13 @@ class PapdlIperfAPI:
 
         self.context.logger.info(f"Spawning iperf3 network inspection service...")
         self.context.loadingBar.start()
-        self.client.images.pull("networkstatic/iperf3")
+        self.context.client.images.pull("networkstatic/iperf3")
         
-        es = EndpointSpec(port={5201:5201})
+        es = EndpointSpec(ports={5201:5201})
         nac = NetworkAttachmentConfig(self.context.network.name)
-        rp = RestartPolicy(condition="always")
+        rp = RestartPolicy(condition="any")
         
-        service = self.context.services.create(
+        service = self.context.client.services.create(
             image="networkstatic/iperf3",
             name=f"iperf",
             mode=ServiceMode(mode="global"),
