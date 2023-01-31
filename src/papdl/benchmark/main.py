@@ -32,7 +32,7 @@ def scission_strategy(slice_list:List[Slice])->Dict:
         deployed_services = api.deploy_benchmarkers(slice_list)
         node:Node
         service:Service
-        for node,service in deployed_services:
+        for node,service in deployed_services.items():
             statistics[node.id] = api.get_service_logs(service)
     except APIError as e:
         preferences['logger'].error(e.response.text)
@@ -45,6 +45,7 @@ def scission_strategy(slice_list:List[Slice])->Dict:
         if api is not None:
             api.cleanup()
         loadingBar.stop()
+    return statistics
 
 def get_optimal_slices(slice_list: List[Slice], arg_preferences:Preferences):
     global preferences

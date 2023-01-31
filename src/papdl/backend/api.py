@@ -46,13 +46,15 @@ class PapdlAPI:
         registry_service = self._deploy_service_with_timeout(self.registry_api.spawn_registry)
         iperf_service = self._deploy_service_with_timeout(self.iperf_api.spawn_iperfs)
         
+        node_id_ip_mapping = self.iperf_api.get_node_to_iperf_ip_mapping(iperf_service)
+        
         image = self.benchmark_api.build_benchmark_image(slices)
         node:Node
         deployed_services:Dict[Node,Service] = {}
         for node in self.context.devices:
             deployed_services[node] = self._deploy_service_with_timeout(
                 self.benchmark_api.spawn_benchmarker_on_node,
-                {'image':image,'node':node}
+                {'image':image,'node':node,'iperf_test_ips':node_id_ip_mapping.values()}
             )
         return deployed_services
     

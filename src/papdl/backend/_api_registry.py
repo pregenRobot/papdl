@@ -58,8 +58,8 @@ class PapdlRegistryAPI:
         query = {}
         if name is not None:
             query["name"] = name
+        query["label"] = ["papdl=true"]
         if(len(labels.keys()) != 0):
-            query["label"] = []
             for k,v in labels.items():
                 query["label"].append(f"{k}={v}")
         return self.context.client.secrets.list(filters=query)

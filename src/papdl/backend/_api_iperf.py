@@ -12,6 +12,19 @@ class PapdlIperfAPI:
     def __init__(self,context:PapdlAPIContext):
         self.context = context
     
+    def get_node_to_iperf_ip_mapping(self,service:Service):
+        iperf_tasks = service.tasks()
+        mapping = {}
+        for task in iperf_tasks:
+            node_id = task['NodeID']
+            task_networks = task["NetworksAttachments"]
+            project_network_config = list(filter(lambda n: n['Network']['Spec']['Name'] == self.context.network.name , task_networks))[0]
+            iperf_ip = project_network_config['Addresses'][0]
+            ip = iperf_ip.split("/")[0]
+            mapping[node_id] = ip
+        return mapping
+        
+    
     def spawn_iperfs(
         self,
     )->Service:
@@ -23,7 +36,8 @@ class PapdlIperfAPI:
         self.context.loadingBar.start()
         self.context.client.images.pull("networkstatic/iperf3")
         
-        es = EndpointSpec(ports={5201:5201})
+        # es = EndpointSpec(ports={5201:5201})
+        es = EndpointSpec(mode="vip",ports={5201:5201})
         nac = NetworkAttachmentConfig(self.context.network.name)
         rp = RestartPolicy(condition="any")
         

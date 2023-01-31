@@ -58,12 +58,13 @@ class PapdlBenchmarkAPI:
     def spawn_benchmarker_on_node(
         self,
         image:Image,
-        node:Node
+        node:Node,
+        iperf_test_ips:List[str]
     )->Service:
         image_name = image.tags[0]
         self.context.logger.info(f"Spawning service for image {image_name}")
         self.context.loadingBar.start()
-        node_ips = list(map(lambda n: n.attrs["Status"]["Addr"],self.context.devices))
+        # node_ips = list(map(lambda n: n.attrs["Status"]["Addr"],self.context.devices))
         
         service = self.context.client.services.create(
             image=image_name,
@@ -72,7 +73,7 @@ class PapdlBenchmarkAPI:
             constraints=[f"node.id=={node.id}"],
             user=f"{self.context.local_user}:{self.context.local_user}",
             restart_policy = RestartPolicy(condition="none"),
-            env=[f"PAPDL_WORKERS={' '.join(node_ips)}"],
+            env=[f"PAPDL_WORKERS={' '.join(iperf_test_ips)}"],
             labels={
                 "papdl":"true",
                 "project_name":self.context.project_name,
