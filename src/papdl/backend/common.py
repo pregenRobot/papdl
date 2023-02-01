@@ -6,6 +6,7 @@ import logging
 from colorama import Fore,Style
 from time import time,sleep
 from threading import Thread
+from docker.models.services import Service
 
 class LoadingBar():
     bar = [
@@ -50,8 +51,9 @@ class LoadingBar():
         
 
 class ContainerBehaviourException(Exception):
-    def __init__(self, message:str):
+    def __init__(self, message:str,service:Service=None):
         self.message = message
+        self.service = service
         super().__init__(self.message)
     
 class AppType(Enum):

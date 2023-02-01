@@ -38,6 +38,9 @@ def scission_strategy(slice_list:List[Slice])->Dict:
         preferences['logger'].error(e.response.text)
     except ContainerBehaviourException as e:
         preferences['logger'].error(e.message)
+        preferences['logger'].error("=====SERVICE LOGS=====")
+        preferences['logger'].error(api.get_service_logs(e.service))
+        exit(1)
     except DockerException as e:
         preferences['logger'].error("Docker Exception occured. Have you started the client?")
         preferences['logger'].error(e)

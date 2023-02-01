@@ -2,10 +2,11 @@ FROM tensorflow/tensorflow
 
 ARG local_uid
 ARG local_user
-RUN adduser --uid ${local_uid} --gecos "" --disabled-password ${local_user}
-RUN apt-get update
+RUN adduser --system --uid ${local_uid} --gecos "" --disabled-password ${local_user} 
+RUN apt update
+RUN apt install -y iperf3 iputils-ping
 RUN apt install -y iputils-ping
-USER ${local_user}
+# USER ${local_user}
 
 ENV PATH="/home/${local_user}/.local/bin:${PATH}"
 

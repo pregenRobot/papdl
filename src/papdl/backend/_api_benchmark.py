@@ -72,7 +72,8 @@ class PapdlBenchmarkAPI:
             command=f"python3 -m server",
             name=f"{self.context.project_name}_benchmark_{node.id}",
             constraints=[f"node.id=={node.id}"],
-            user=f"{self.context.local_user}:{self.context.local_user}",
+            # user=f"{self.context.local_user}:{self.context.local_user",
+            # user=self.context.local_user,
             restart_policy = RestartPolicy(condition="none"),
             env=[f"PAPDL_WORKERS={' '.join(iperf_test_ips)}"],
             labels={
