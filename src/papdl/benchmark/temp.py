@@ -403,7 +403,26 @@ class SearchStatus(NamedTuple):
    total_distance:float
    path:Path
 
-def find_shortest_loop(start_node:Node)->List[Node]:
+
+class SearchCriterion(TypedDict):
+   layer_must_be_in_device:Dict[Model,Device]
+   layer_must_not_be_in_device:Dict[Model,Device]
+
+
+def valid_path(path:List[Node],criteria:SearchCriterion):
+   for node in path:
+      for model,device in criteria["layer_must_be_in_device"].items():
+         if model == node.model and device != node.device:
+            return False
+   
+   for node in path:
+      for model,device in criteria["layer_must_not_be_in_device"].items():
+         if model == node.model and device == node.device:
+            return False
+   
+   return True
+   
+def find_shortest_loop(start_node:Node,search_criteria:SearchCriterion)->List[Node]:
    visited = {start_node: [start_node]}
    queue:List[SearchStatus] = [SearchStatus(0,Path(node=start_node,penalty_ms=0))]
    while queue:
@@ -413,7 +432,11 @@ def find_shortest_loop(start_node:Node)->List[Node]:
          child_node = child_path["node"]
          if child_node not in visited:
             visited[child_node] = visited[current_node] + [child_node] # Make a copy
-            new_penalty = total_penalty_ms + child_path["penalty_ms"]
+            new_penalty:float
+            if(valid_path(visited[child_node],search_criteria)):
+               new_penalty = total_penalty_ms + child_path["penalty_ms"]
+            else:
+               new_penalty = float('inf')
             heapq.heappush(
                queue,
                SearchStatus(total_distance=new_penalty,path=Path(node=child_node,penalty_ms=new_penalty))
@@ -422,7 +445,12 @@ def find_shortest_loop(start_node:Node)->List[Node]:
             return visited[current_node] + [start_node]
    return [] # No loop found
 
-result = find_shortest_loop(start_node=head)
+result = find_shortest_loop(start_node=head,
+   search_criteria=SearchCriterion(
+      layer_must_be_in_device={},
+      layer_must_not_be_in_device={models[0]:source_device}
+   )
+)
 
 
 print([n.device.name for n in result])
