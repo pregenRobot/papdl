@@ -18,7 +18,7 @@ test_input = """
             "benchmark_time":0.0007116296291351319,
             "benchmark_size":168
          },
-         "model":{
+         "model_0":{
             "benchmark_time":0.0012714905738830566,
             "benchmark_size":928
          },
@@ -121,7 +121,7 @@ test_input = """
             "benchmark_time":0.0008331222534179687,
             "benchmark_size":528
          },
-         "model":{
+         "model_0":{
             "benchmark_time":0.0012930092811584473,
             "benchmark_size":928
          },
@@ -180,7 +180,7 @@ test_input = """
             "benchmark_time":0.0005836150646209717,
             "benchmark_size":1728
          },
-         "model":{
+         "model_0":{
             "benchmark_time":0.0008509521484375,
             "benchmark_size":928
          },
@@ -280,38 +280,13 @@ class Device():
    def __str__(self):
       return self.name
 
-## class Device(TypedDict):
-##    name:str
-## 
-## class Model(TypedDict):
-##    name:str
-
 devices:List[Device] = [Device(k) for k in list(test.keys())]
 source_device = devices[0]
 
 models:List[Model] = [Model(m) for m in sorted(list(test[source_device.name]['model_performance'].keys()))]
 
 input_size = 100
-
-
-## class Decision(TypedDict):
-##    model:Model
-##    device:Device
-##    
-## 
-## class Path(TypedDict):
-##    node:Decision
-##    penalty_ms:float 
-##    
-## 
-## class Node(TypedDict):
-##    decision:Union[Decision,None]
-##    paths:List[Path]
   
-class Node(TypedDict):
-   model:Model
-   device:Device
-   paths:List["Path"]
 
 class Node():
    def __init__(self,model:Model=None, device:Device=None, paths:List["Path"]=None):
@@ -325,10 +300,25 @@ class Node():
       else:
          return hash(self.model.name + "-" + self.device.name)
    
-   def __eq__(self,other)->bool:
+   def __eq__(self,other:"Node")->bool:
       if isinstance(other,Node):
-         return self.model.name == other.model.name and self.device.name == other.device.name
+         if self.model is None and other.model is None:
+            return self.device.name == other.device.name
+         else:
+            return self.model.name == other.model.name and self.device.name == other.device.name
       return False
+   
+   def __str_children(self)->str:
+      result = []
+      p:"Path"
+      for p in self.paths:
+         model_name = p['node'].model.name if p['node'].model is not None else "NULL"
+         result.append(f"*{model_name}-{p['node'].device.name}-{p['penalty_ms']}*")
+      return "\n".join(result)
+         
+   def __str__(self)->str:
+      model_name = "NULL" if self.model is None else self.model.name
+      return f"<NODE model:{model_name} device:{self.device.name} children=[\n{self.__str_children()}]>"
 
 class Path(TypedDict):
    node:Node
@@ -365,10 +355,6 @@ def generate_path(source:Device, destination:Device, next_model:Model)->Path:
       path = Path(node=Node(model=next_model,device=destination,paths=[]),penalty_ms=penalty)
    return path
 
-head = Node(model=None,device=source_device,paths=[])
-
-current = head
-
 
 def rec_construct_path(models_left:List[Model],currNode:Node):
    ## Check for duplicate node construct here
@@ -377,14 +363,15 @@ def rec_construct_path(models_left:List[Model],currNode:Node):
 
    visit_node_map[currNode] = currNode
    if len(models_left) == 0:
-      currNode["paths"] = [
-         generate_path(currNode["device"],source_device,model=None)
+      currNode.paths = [
+         generate_path(source=currNode.device,destination=source_device,next_model=None)
       ]
       return
    else:
-      currNode["paths"] = [generate_path(currNode,d,models_left[0]) for d in devices]
+      paths = [generate_path(currNode.device,d,models_left[0]) for d in devices]
+      currNode.paths = paths
       path:Path
-      for path in currNode["paths"]:
+      for path in currNode.paths:
          nextNode = path["node"]
          rec_construct_path(models_left=models_left[1:], currNode=nextNode)
          
@@ -393,7 +380,10 @@ head = Node(
    model=None,
    device=source_device,
 )
-visit_node_map[head] = head
-rec_construct_path(models_left=models,currNode= head)
-print(head)
+## visit_node_map[head] = head
+rec_construct_path(models_left=models,currNode=head)
+
+for n in sorted(visit_node_map.values(),key=lambda n: "n" if n.model is None else n.model.name ):
+   print(n)
+   print("")
 
