@@ -8,6 +8,7 @@ from docker.models.nodes import Node
 from docker.models.images import Image
 from docker.models.services import Service
 from docker.errors import DockerException, APIError
+from ..backend.common import BenchmarkSetup,NodeBenchmarkMetadata,NodeBenchmark,PapdlTest
 from docker.types import RestartPolicy
 from time import sleep,time
 from json import loads
@@ -23,12 +24,39 @@ def benchmark_slices(slice_list:List[Slice])->Dict:
     else:
         raise NotImplementedError
 
+# def _prepare_cache(self,context:PapdlAPIContext)->PapdlTest:
+#     return PapdlTest(
+#         benchmark=[],
+#         benchmark_setup=BenchmarkSetup(
+#             project_name=context.project_name,
+#             registry_service=context.registry_service,
+#             iperf_service=context.iperf_service,
+#             network=context.network,
+#             benchmark_image=context.benchmark_image
+#         )
+#     )
+# 
+# def _append_to_cache(self,api:PapdlAPI, papdl_test:PapdlTest,node:Node,service:Service, benchmark_result:Dict)->PapdlTest:
+#     papdl_test['benchmark'].append(
+#         NodeBenchmark(
+#             result=benchmark_result,
+#             metadata=NodeBenchmarkMetadata(
+#                 node=node,
+#                 task=service.tasks()[0],
+#                 raw_log=api.get_raw_service_logs(service),
+#             )
+#         )
+#     )
+    
+    
+
 def scission_strategy(slice_list:List[Slice])->Dict:
     global preferences
     statistics = {}
     api:PapdlAPI = None
     try:
-        api = PapdlAPI(context=PapdlAPIContext(preference=preferences))
+        pac = PapdlAPIContext(preference=preferences)
+        api = PapdlAPI(context=pac)
         deployed_services = api.deploy_benchmarkers(slice_list)
         node:Node
         service:Service

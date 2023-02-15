@@ -4,7 +4,7 @@ from docker.models.services import Service
 from docker.models.secrets import Secret
 from docker.types import RestartPolicy,EndpointSpec,SecretReference,NetworkAttachmentConfig
 
-from .api_common import PapdlAPIContext,get_papdl_service
+from .api_common import PapdlAPIContext,get_papdl_service,get_papdl_secret
 from .common import Slice,AppType
 from typing import List,TypedDict,Tuple,Dict
 from os import path,mkdir,PathLike
@@ -42,39 +42,14 @@ class PapdlRegistryAPI:
         with open(key_path, "wt") as f:
             f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k).decode("utf-8"))
     
-    # def get_docker_secrets(self,labels={},name=None):
-    #     query = {
-    #         "label":{
-    #             "papdl":"true"
-    #         },
-    #     }
-    #     query["label"].update(labels)
-    #     print(query)
-    #     if name is not None:
-    #         query["name"] = name
-    #     return self.context.client.secrets.list(filters=query)
-    
-    def get_docker_secrets(self,labels:Dict[str,str]={},name=None):
-        query = {}
-        if name is not None:
-            query["name"] = name
-        query["label"] = ["papdl=true"]
-        if(len(labels.keys()) != 0):
-            for k,v in labels.items():
-                query["label"].append(f"{k}={v}")
-        return self.context.client.secrets.list(filters=query)
-        
-    
     def secret_gen(self)->Tuple[Secret,Secret]:
         cert_path = path.join(self.context.dircontext["api_module_path"],"certificates","registry.crt")
         key_path = path.join(self.context.dircontext["api_module_path"],"certificates","registry.key")
         if(not(Path(cert_path).is_file() and Path(key_path).is_file())):
             self.cert_gen(cert_path,key_path)
         
-        registry_docker_cert = self.get_docker_secrets(labels={"type":"cert"},name="registry.crt")
-        registry_docker_key = self.get_docker_secrets(labels={"type":"key"},name="registry.key")
-        print(registry_docker_cert)
-        print(registry_docker_key)
+        registry_docker_cert = get_papdl_secret(self.context,labels={"type":"cert"},name="registry.crt")
+        registry_docker_key = get_papdl_secret(self.context,labels={"type":"key"},name="registry.key")
         
         registry_crt:Secret=None
         if(len(registry_docker_cert) == 0):

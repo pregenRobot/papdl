@@ -3,7 +3,7 @@ from docker.models.images import Image
 from docker.models.services import Service
 from docker.types import RestartPolicy,NetworkAttachmentConfig
 
-from .api_common import PapdlAPIContext,prepare_build_context,copy_app,print_docker_logs
+from .api_common import PapdlAPIContext,prepare_build_context,copy_app,get_docker_logs
 from .common import Slice,AppType
 from typing import List,TypedDict
 from os import path,mkdir
@@ -43,9 +43,14 @@ class PapdlBenchmarkAPI:
         image, build_logs = self.context.client.images.build(
             path=build_context,
             tag=name,
-            buildargs=buildargs
+            buildargs=buildargs,
+            labels={
+                "papdl":"true",
+                "project_name":self.context.project_name,
+                "type":"benchmark"
+            }
         )
-        print_docker_logs(self.context,build_logs)
+        get_docker_logs(self.context,build_logs)
         self.context.cleanup_target["images"].append(image)
         self.context.loadingBar.stop()
         
@@ -53,6 +58,7 @@ class PapdlBenchmarkAPI:
         self.context.loadingBar.start()
         self.context.client.images.push(name)
         self.context.loadingBar.stop()
+        self.context.benchmark_image = image
         return image
 
     def spawn_benchmarker_on_node(

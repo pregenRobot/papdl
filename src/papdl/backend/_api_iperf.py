@@ -23,14 +23,13 @@ class PapdlIperfAPI:
             ip = iperf_ip.split("/")[0]
             mapping[node_id] = ip
         return mapping
-        
     
     def spawn_iperfs(
         self,
     )->Service:
         iperf_services = get_papdl_service(self.context,labels={"type":"iperf"})
         if(len(iperf_services) != 0):
-            return iperf_services[0]
+            iperf_services[0].remove()
 
         self.context.logger.info(f"Spawning iperf3 network inspection service...")
         self.context.loadingBar.start()

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import TypedDict
+from typing import TypedDict,Dict,List,Union
 from keras.models import Model
 import tqdm
 import logging
@@ -7,6 +7,10 @@ from colorama import Fore,Style
 from time import time,sleep
 from threading import Thread
 from docker.models.services import Service
+from docker.models.images import Image
+from docker.models.networks import Network
+from docker.models.containers import Container
+from docker.models.nodes import Node
 
 class LoadingBar():
     bar = [
@@ -124,3 +128,30 @@ class Preferences(TypedDict):
     startup_timeout:int
     split_strategy: SplitStrategy
     logger:logging.Logger
+
+##########
+
+
+class BenchmarkSetup(TypedDict):
+    project_name:str
+    registry_service:Service
+    iperf_service:Service
+    network:Network
+    benchmark_image:Image
+
+class NodeBenchmarkMetadata(TypedDict):
+    node:Node
+    task:Dict
+    raw_log:str
+    host_ip:str
+    docker_dns_ip:str
+
+class NodeBenchmark(TypedDict):
+    result:Dict
+    metadata:NodeBenchmarkMetadata
+
+class PapdlTest(TypedDict):
+    benchmark:List[NodeBenchmark]
+    benchmark_setup:BenchmarkSetup
+    
+    

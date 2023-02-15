@@ -1,7 +1,9 @@
 from shutil import copytree,copyfile
-from typing import List,TypedDict,Generator,Dict
+from typing import List,TypedDict,Generator,Dict,Callable,Union
 from docker.models.images import Image
 from docker.models.services import Service
+from docker.models.secrets import Secret
+from docker.models.networks import Network
 from .common import Preferences,LoadingBar,AppType
 from random_word import  RandomWords
 from getpass import getuser
@@ -26,16 +28,20 @@ class CertSpecs(TypedDict):
     validity_seconds:int
 
 class PapdlAPIContext:
-    def __init__(self,preference:Preferences, project_name = None, certSubject:CertSpecs=None):
+    def __init__(self,preference:Preferences=None, project_name = None, certSubject:CertSpecs=None):
         project_name:str
+        self.client = docker.from_env()
+        if preference is None:
+            self.shell = True # Shell class only to be used as a docker client to access utility methods
+            return
+        else:
+            self.shell = False
+
         r = RandomWords()
         if project_name == None:
-            # MACOS
-            # project_name = open("/usr/share/dict/words").readlines()[floor(random()*235886)][:-1]
             project_name = r.get_random_word()
         
         self.logger = preference["logger"]
-        self.client = docker.from_env()
         self.dircontext = {}
         self.local_user = getuser()
         self.local_uid = getuid()
@@ -45,7 +51,6 @@ class PapdlAPIContext:
         self.cleanup_target = CleanupTarget(tempfolders=[],images=[],services=[])
         
         papdl_networks = get_papdl_network(self)
-        print(papdl_networks)
         if(len(papdl_networks) == 0):
             self.network = self.client.networks.create(
                 name=f"papdl_overlay",
@@ -60,7 +65,13 @@ class PapdlAPIContext:
 
         self.preference = preference
         
-        self.devices = self.client.nodes.list()
+        self.devices = list(filter( lambda n: n.attrs['Status']['State'] == 'ready' , self.client.nodes.list()))
+        self.logger.info(f"Available nodes: {self.devices}")
+        
+        # Dynamically set during runtime
+        self.registry_service:Union[Service,None] = None
+        self.iperf_service:Union[Service,None] = None
+        self.benchmark_image:Union[Image,None] = None
         
         if(certSubject == None):
             self.cert_specs = CertSpecs(
@@ -79,6 +90,7 @@ def prepare_build_context(context:PapdlAPIContext)->str:
     context.cleanup_target["tempfolders"].append(build_context)
     return build_context
 
+
 def copy_app(context:PapdlAPIContext,app_type:AppType,build_context:str)->str:
     copytree(
         path.join(context.dircontext["api_module_path"],"containers",app_type.value ,"app"),
@@ -93,7 +105,7 @@ def copy_app(context:PapdlAPIContext,app_type:AppType,build_context:str)->str:
         path.join(build_context,"requirements.txt")
     )
 
-def get_papdl_service(context:PapdlAPIContext,labels:Dict[str,str]={},name=None):
+def _get_papdl_component(list_handler:Callable,labels:Dict[str,str],name=None)->List:
     query = {}
     if name is not None:
         query["name"] = name
@@ -101,22 +113,34 @@ def get_papdl_service(context:PapdlAPIContext,labels:Dict[str,str]={},name=None)
     if(len(labels.keys()) != 0):
         for k,v in labels.items():
             query["label"].append(f"{k}={v}")
-    return context.client.services.list(filters=query)
+    print(query)
+    return list_handler(filters=query)
+    
+
+def get_papdl_secret(context:PapdlAPIContext,labels:Dict[str,str]={},name=None)->List[Secret]:
+    return _get_papdl_component(context.client.secrets.list,labels,name)
+
+def get_papdl_service(context:PapdlAPIContext,labels:Dict[str,str]={},name=None):
+    return _get_papdl_component(context.client.services.list,labels,name)
+
+def get_papdl_image(context:PapdlAPIContext,labels:Dict[str,str]={},name=None):
+    return _get_papdl_component(context.client.images.list,labels,name)
+
+def get_papdl_network(context:PapdlAPIContext,labels:Dict[str,str]={},name=None)    :
+    return _get_papdl_component(context.client.networks.list,labels,name)
 
 def get_service_status(service:Service)->List[str]:
     return list(map(lambda s: s['Status']['State'], service.tasks()))
 
-def get_papdl_network(context:PapdlAPIContext,labels:Dict[str,str]={},name=None)    :
-    query = {}
-    if name is not None:
-        query["name"] = name
-    query["label"] = ["papdl=true"]
-    if(len(labels.keys()) != 0):
-        for k,v in labels.items():
-            query["label"].append(f"{k}={v}")
-    return context.client.networks.list(filters=query)
+def get_service_node_ip_mapping(self,service:Service):
+    service_tasks = service.tasks()
+    mappings = []
+    for task in service_tasks:
+        node_id = task['NodeID']
+        task_networks = task["NetworksAttachments"]
+        project_network_config = list(filter(lambda n: n['Network']['Spec']['Name']))
 
-def print_docker_logs(context:PapdlAPIContext,log_generator:Generator[Dict,None,None]):
+def get_docker_logs(context:PapdlAPIContext,log_generator:Generator[Dict,None,None]):
     for chunk in log_generator:
         if 'stream' in chunk:
             for line in chunk["stream"].splitlines():

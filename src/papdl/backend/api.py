@@ -1,4 +1,4 @@
-from typing import Dict,List,Callable
+from typing import Dict,List,Callable,Optional
 from ._api_benchmark import PapdlBenchmarkAPI
 from ._api_iperf import PapdlIperfAPI
 from ._api_registry import PapdlRegistryAPI
@@ -7,6 +7,7 @@ from docker.models.services import Service
 from docker.models.nodes import Node
 from .common import Slice,ContainerBehaviourException
 from time import time,sleep
+from ..backend.common import BenchmarkSetup,NodeBenchmarkMetadata,NodeBenchmark,PapdlTest
 
 
 import json
@@ -17,9 +18,11 @@ class PapdlAPI:
         self.benchmark_api = PapdlBenchmarkAPI(context)
         self.registry_api = PapdlRegistryAPI(context)
         self.iperf_api = PapdlIperfAPI(context)
+        
     
     def cleanup(self):
         pass
+        
     
     def _all_match_any_of(_all:List[str],_any:List[str])->bool:
         return all([True if x in _any else False for x in _all])
@@ -42,16 +45,21 @@ class PapdlAPI:
                     raise ContainerBehaviourException(f"Service {service.name} was/has {service_status}",service=service)
                 sleep(1)
         self.context.loadingBar.stop()
-        return service 
+        return service
+    
+        
+    
     
     def deploy_benchmarkers(self,slices:List[Slice])->Dict[Node,Service]:
         
         registry_service = self._deploy_service_with_timeout(self.registry_api.spawn_registry, ["running","complete"])
         iperf_service = self._deploy_service_with_timeout(self.iperf_api.spawn_iperfs, ["running", "complete"])
+        self.context.registry_service = registry_service
+        self.context.iperf_service = iperf_service
         
         node_id_ip_mapping = self.iperf_api.get_node_to_iperf_ip_mapping(iperf_service)
         
-        print(node_id_ip_mapping)
+        self.context.logger.info(f"Node to docker-dns-ip mapping: {node_id_ip_mapping}")
         
         image = self.benchmark_api.build_benchmark_image(slices)
         node:Node
@@ -63,6 +71,20 @@ class PapdlAPI:
                 {'image':image,'node':node,'iperf_test_ips':node_id_ip_mapping.values()}
             )
         return deployed_services
+    
+    def get_raw_service_logs(self,service:Service)->str:
+        log_read_start = time()
+        lines = []
+        while True:
+            state = service.tasks()[0]['Status']['State']
+            if state == 'complete':
+                log_line:bytes
+                for log_line in service.logs(stdout=True):
+                    log_decoded = log_line.decode('utf-8')
+                    lines.append(log_decoded)
+            else:
+                if time() - log_read_start > self.context.preference["service_idle_detection"]:
+                    raise ContainerBehaviourException(f"Log reading timed out on service {service.name}",service=Service)
     
 
     def get_service_logs(self,service:Service)->Dict:
