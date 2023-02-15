@@ -1,7 +1,7 @@
 
 from json import loads,dumps
 from enum import Enum
-from typing import Dict, List, TypedDict,Union,Set
+from typing import Dict, List, TypedDict,Union,Set,Tuple
 from copy import deepcopy
 import pandas as pd
 from collections import deque
@@ -302,10 +302,16 @@ class Node():
    
    def __eq__(self,other:"Node")->bool:
       if isinstance(other,Node):
+         if self.model is None and other.model is not None:
+            return False
+
+         if other.model is None and self.model is not None:
+            return False
+         
          if self.model is None and other.model is None:
             return self.device.name == other.device.name
-         else:
-            return self.model.name == other.model.name and self.device.name == other.device.name
+
+         return self.model.name == other.model.name and self.device.name == other.device.name
       return False
    
    def __str_children(self)->str:
@@ -316,9 +322,13 @@ class Node():
          result.append(f"*{model_name}-{p['node'].device.name}-{p['penalty_ms']}*")
       return "\n".join(result)
          
-   def __str__(self)->str:
+   def __detailstr__(self)->str:
       model_name = "NULL" if self.model is None else self.model.name
       return f"<NODE model:{model_name} device:{self.device.name} children=[\n{self.__str_children()}]>"
+
+   def __str__(self)->str:
+      model_name = "NULL" if self.model is None else self.model.name
+      return f"<NODE model:{model_name} device:{self.device.name}]>"
 
 class Path(TypedDict):
    node:Node
@@ -383,7 +393,37 @@ head = Node(
 ## visit_node_map[head] = head
 rec_construct_path(models_left=models,currNode=head)
 
-for n in sorted(visit_node_map.values(),key=lambda n: "n" if n.model is None else n.model.name ):
-   print(n)
-   print("")
+## for n in sorted(visit_node_map.values(),key=lambda n: "n" if n.model is None else n.model.name ):
+##    print(n)
+##    print("")
+import heapq
 
+def find_shortest_loop(start_node: Node) -> List[Node]:
+    visited = {start_node: [start_node]} # map each visited node to a list of nodes visited to reach it
+    queue = [(0, Path(node=start_node,penalty_ms=0))] # prioritize paths with lower total penalty_ms
+    while queue:
+        total_penalty_ms, path = heapq.heappop(queue)
+        current_node = path["node"]
+        for child_path in current_node.paths:
+            child_node = child_path['node']
+            if child_node not in visited:
+               visited[child_node] = visited[current_node] + [child_node]
+               heapq.heappush(
+                  queue, 
+                  (
+                     total_penalty_ms + child_path['penalty_ms'], 
+                     Path(
+                        node=child_node, 
+                        penalty_ms=total_penalty_ms + child_path['penalty_ms']
+                     )
+                  )
+               )
+            elif child_node == start_node and len(visited[current_node]) > 1:
+                # found a loop
+                return visited[current_node] + [start_node]
+    return [] # no loops found
+ 
+result = find_shortest_loop(start_node=head)
+
+print([n.device.name for n in result])
+print(source_device.name)
