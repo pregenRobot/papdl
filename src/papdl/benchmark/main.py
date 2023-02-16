@@ -1,7 +1,7 @@
 from enum import Enum 
 from typing import List,Dict,TypedDict
 from ..slice.slice import Slice
-from ..backend.api import PapdlAPI
+from ..backend.api import PapdlAPI, DeploymentStatus
 from ..backend.common import ContainerBehaviourException,Preferences,SplitStrategy,LoadingBar
 from ..backend.api_common import PapdlAPIContext
 from docker.models.nodes import Node
@@ -12,6 +12,7 @@ from ..backend.common import BenchmarkSetup,NodeBenchmarkMetadata,NodeBenchmark,
 from docker.types import RestartPolicy
 from time import sleep,time
 from json import loads
+from copy import deepcopy
 
 preferences:Preferences
 loadingBar:LoadingBar
@@ -47,7 +48,15 @@ def benchmark_slices(slice_list:List[Slice])->Dict:
 #             )
 #         )
 #     )
-    
+
+
+## def translate_node_ip_to_node_id(ds:DeploymentStatus, statistics:Dict)->Dict:
+##     for device,s in statistics:
+##         for ip,network_benchmark in s["network_performance"]:
+##             temp = deepcopy(statistics[device][ip])
+##             
+##             
+##             
     
 
 def scission_strategy(slice_list:List[Slice])->Dict:
@@ -57,7 +66,8 @@ def scission_strategy(slice_list:List[Slice])->Dict:
     try:
         pac = PapdlAPIContext(preference=preferences)
         api = PapdlAPI(context=pac)
-        deployed_services = api.deploy_benchmarkers(slice_list)
+        ds = api.deploy_benchmarkers(slice_list)
+        deployed_services = ds.node_service_mapping 
         node:Node
         service:Service
         for node,service in deployed_services.items():

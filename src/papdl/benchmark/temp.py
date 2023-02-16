@@ -478,10 +478,10 @@ def generate_slices(op:OptimalPath)->List[Slice]:
    r = 2
    
    slices:List[Slice] = []
-   while r < len(op.path)-1:
+   while r < len(op.path):
       if op.path[r].device != op.path[l].device:
          nodes_slice = op.path[l:r]
-         s = Slice(models=[n.model for n in nodes_slice],slice_index=(l,r),device=op.path[r].device)
+         s = Slice(models=[n.model for n in nodes_slice],slice_index=(l,r),device=op.path[l].device)
          slices.append(s)
          l = r
       r+=1
@@ -493,10 +493,10 @@ def generate_slices(op:OptimalPath)->List[Slice]:
 print("Optimal Path: \n" + ",\n".join([ f"<MODEL: {n.model} DEVICE: {n.device}>" for n in result.path]))
 print("Penalty: " + str(result.penalty))
 
-## slices = generate_slices(result)
-## 
-## print("OPTIMAL SLICES: ")
-## for s in slices:
-##    print(f"<SLICE model: {', '.join( [m.name for m in s.models])}, device: {s.device}>")
-## 
+slices = generate_slices(result)
+
+print("OPTIMAL SLICES: ")
+for s in slices:
+   print(f"<SLICE model: {', '.join( [m.name for m in s.models])}, device: {s.device}>")
+
 

@@ -132,13 +132,17 @@ def get_papdl_network(context:PapdlAPIContext,labels:Dict[str,str]={},name=None)
 def get_service_status(service:Service)->List[str]:
     return list(map(lambda s: s['Status']['State'], service.tasks()))
 
-def get_service_node_ip_mapping(self,service:Service):
+def get_service_node_ip_mapping(context: PapdlAPIContext, service:Service):
     service_tasks = service.tasks()
-    mappings = []
+    mapping = {}
     for task in service_tasks:
         node_id = task['NodeID']
         task_networks = task["NetworksAttachments"]
-        project_network_config = list(filter(lambda n: n['Network']['Spec']['Name']))
+        project_network_config = list(filter(lambda n: n['Network']['Spec']['Name'] == context.network.name, task_networks))[0]
+        task_ip = project_network_config['Addresses'][0]
+        ip = task_ip.split("/")[0]
+        mapping[node_id] = ip
+    return mapping
 
 def get_docker_logs(context:PapdlAPIContext,log_generator:Generator[Dict,None,None]):
     for chunk in log_generator:

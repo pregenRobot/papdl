@@ -3,26 +3,18 @@ from docker.models.images import Image
 from docker.models.services import Service
 from docker.types import RestartPolicy,ServiceMode,EndpointSpec,NetworkAttachmentConfig
 
-from .api_common import PapdlAPIContext,get_papdl_service,get_service_status
+from .api_common import PapdlAPIContext,get_papdl_service,get_service_status, get_service_node_ip_mapping
 from .common import Slice,AppType
-from typing import List,TypedDict
+from typing import List,TypedDict,Dict
 from os import path,mkdir
 
 class PapdlIperfAPI:
     def __init__(self,context:PapdlAPIContext):
         self.context = context
-    
-    def get_node_to_iperf_ip_mapping(self,service:Service):
-        iperf_tasks = service.tasks()
-        mapping = {}
-        for task in iperf_tasks:
-            node_id = task['NodeID']
-            task_networks = task["NetworksAttachments"]
-            project_network_config = list(filter(lambda n: n['Network']['Spec']['Name'] == self.context.network.name , task_networks))[0]
-            iperf_ip = project_network_config['Addresses'][0]
-            ip = iperf_ip.split("/")[0]
-            mapping[node_id] = ip
-        return mapping
+        self.service:Service = None
+        
+    def get_iperf_node_ip_mapping(self) -> Dict[str,str]:
+        return get_service_node_ip_mapping(self.context,self.service)
     
     def spawn_iperfs(
         self,
@@ -55,4 +47,5 @@ class PapdlIperfAPI:
         )
         self.context.cleanup_target["services"].append(service)
         self.context.loadingBar.stop()
+        self.service = service
         return service

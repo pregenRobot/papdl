@@ -1,4 +1,4 @@
-from typing import Dict,List,Callable,Optional
+from typing import Dict,List,Callable,Optional,NamedTuple
 from ._api_benchmark import PapdlBenchmarkAPI
 from ._api_iperf import PapdlIperfAPI
 from ._api_registry import PapdlRegistryAPI
@@ -12,6 +12,12 @@ from ..backend.common import BenchmarkSetup,NodeBenchmarkMetadata,NodeBenchmark,
 
 import json
 
+
+class DeploymentStatus(NamedTuple):
+    node_service_mapping:Dict[Node,Service]
+    node_ip_mapping:Dict[str,str]
+    
+
 class PapdlAPI:
     def __init__(self,context:PapdlAPIContext):
         self.context = context
@@ -19,10 +25,8 @@ class PapdlAPI:
         self.registry_api = PapdlRegistryAPI(context)
         self.iperf_api = PapdlIperfAPI(context)
         
-    
     def cleanup(self):
         pass
-        
     
     def _all_match_any_of(_all:List[str],_any:List[str])->bool:
         return all([True if x in _any else False for x in _all])
@@ -47,19 +51,15 @@ class PapdlAPI:
         self.context.loadingBar.stop()
         return service
     
-        
-    
-    
-    def deploy_benchmarkers(self,slices:List[Slice])->Dict[Node,Service]:
+    def deploy_benchmarkers(self,slices:List[Slice])->DeploymentStatus:
         
         registry_service = self._deploy_service_with_timeout(self.registry_api.spawn_registry, ["running","complete"])
         iperf_service = self._deploy_service_with_timeout(self.iperf_api.spawn_iperfs, ["running", "complete"])
         self.context.registry_service = registry_service
         self.context.iperf_service = iperf_service
+        iperf_node_ip_mapping = self.iperf_api.get_iperf_node_ip_mapping()
         
-        node_id_ip_mapping = self.iperf_api.get_node_to_iperf_ip_mapping(iperf_service)
-        
-        self.context.logger.info(f"Node to docker-dns-ip mapping: {node_id_ip_mapping}")
+        self.context.logger.info(f"Node to docker-dns-ip mapping: {iperf_node_ip_mapping}")
         
         image = self.benchmark_api.build_benchmark_image(slices)
         node:Node
@@ -68,9 +68,11 @@ class PapdlAPI:
             deployed_services[node] = self._deploy_service_with_timeout(
                 self.benchmark_api.spawn_benchmarker_on_node,
                 ["complete"],
-                {'image':image,'node':node,'iperf_test_ips':node_id_ip_mapping.values()}
+                {'image':image,'node':node,'iperf_test_ips':iperf_node_ip_mapping.values()}
             )
-        return deployed_services
+        return DeploymentStatus(
+            node_service_mapping = deployed_services,
+            node_ip_mapping= iperf_node_ip_mapping)
     
     def get_raw_service_logs(self,service:Service)->str:
         log_read_start = time()
@@ -85,7 +87,6 @@ class PapdlAPI:
             else:
                 if time() - log_read_start > self.context.preference["service_idle_detection"]:
                     raise ContainerBehaviourException(f"Log reading timed out on service {service.name}",service=Service)
-    
 
     def get_service_logs(self,service:Service)->Dict:
         log_read_start = time()
