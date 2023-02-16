@@ -57,12 +57,23 @@ def benchmark_slices(slice_list:List[Slice])->Dict:
 ##             
 ##             
 ##             
-    
+
+def translate_statistics(ds:DeploymentStatus, statistics:Dict)->Dict:
+    ip_to_node_mapping = {v: k for k, v in ds.node_ip_mapping.items()}
+    new_statistics = {}
+    for device, device_statistics in statistics.items():
+        new_statistics[device] = {"model_performance":None, "network_performance":{}}
+        new_statistics[device]["model_performance"] = deepcopy(device_statistics["model_performance"])
+        for ip, network_benchmark in device_statistics["network_performance"].items():
+            new_statistics[device]["network_performance"][ip_to_node_mapping[ip]] = deepcopy(network_benchmark)
+        
+    return new_statistics
 
 def scission_strategy(slice_list:List[Slice])->Dict:
     global preferences
     statistics = {}
     api:PapdlAPI = None
+    ds:DeploymentStatus = None
     try:
         pac = PapdlAPIContext(preference=preferences)
         api = PapdlAPI(context=pac)
@@ -86,7 +97,7 @@ def scission_strategy(slice_list:List[Slice])->Dict:
         if api is not None:
             api.cleanup()
         loadingBar.stop()
-    return statistics
+    return translate_statistics(ds, statistics)
 
 def get_optimal_slices(slice_list: List[Slice], arg_preferences:Preferences):
     global preferences
