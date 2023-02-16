@@ -5,6 +5,7 @@ from typing import Dict, List, TypedDict,Union,Set,Tuple,NamedTuple
 from copy import deepcopy
 import pandas as pd
 from collections import deque
+from functools import reduce
 
 test_input = """
 {
@@ -256,10 +257,11 @@ class Model():
       return hash(self.name)
 
    def __eq__(self,other):
-      if isinstance(other, Device):
-         return other.name == self.name
-      else:
+      if other is None:
          return False
+      if not isinstance(other, Model):
+         return False
+      return other.name == self.name
    
    def __str__(self):
       return self.name
@@ -403,6 +405,9 @@ class SearchStatus(NamedTuple):
    total_distance:float
    path:Path
 
+class OptimalPath(NamedTuple):
+   path:List[Node]
+   penalty:float
 
 class SearchCriterion(TypedDict):
    layer_must_be_in_device:Dict[Model,Device]
@@ -422,7 +427,7 @@ def valid_path(path:List[Node],criteria:SearchCriterion):
    
    return True
    
-def find_shortest_loop(start_node:Node,search_criteria:SearchCriterion)->List[Node]:
+def find_shortest_loop(start_node:Node,search_criteria:SearchCriterion)->Union[OptimalPath,None]:
    visited = {start_node: [start_node]}
    queue:List[SearchStatus] = [SearchStatus(0,Path(node=start_node,penalty_ms=0))]
    while queue:
@@ -431,27 +436,67 @@ def find_shortest_loop(start_node:Node,search_criteria:SearchCriterion)->List[No
       for child_path in current_node.paths:
          child_node = child_path["node"]
          if child_node not in visited:
-            visited[child_node] = visited[current_node] + [child_node] # Make a copy
-            new_penalty:float
-            if(valid_path(visited[child_node],search_criteria)):
+            new_path = visited[current_node] + [child_node] # Make a copy
+            if valid_path(new_path,criteria=search_criteria):
+               visited[child_node] = new_path
                new_penalty = total_penalty_ms + child_path["penalty_ms"]
-            else:
-               new_penalty = float('inf')
-            heapq.heappush(
-               queue,
-               SearchStatus(total_distance=new_penalty,path=Path(node=child_node,penalty_ms=new_penalty))
-            )
+               heapq.heappush(
+                  queue,
+                  SearchStatus(total_distance=new_penalty,path=Path(node=child_node,penalty_ms=new_penalty))
+               )
          elif child_node == start_node and len(visited[current_node]) > 1: # Found a loop
-            return visited[current_node] + [start_node]
-   return [] # No loop found
+            return OptimalPath(path=visited[current_node] + [start_node],penalty=child_path["penalty_ms"])
+   return None # No loop found
 
-result = find_shortest_loop(start_node=head,
-   search_criteria=SearchCriterion(
-      layer_must_be_in_device={},
-      layer_must_not_be_in_device={models[0]:source_device}
+
+sc = SearchCriterion(
+      layer_must_be_in_device={models[-2]:source_device, models[-1]:devices[2]},
+      layer_must_not_be_in_device={models[0]:source_device,models[1]:devices[1],models[2]:devices[2]}
    )
-)
 
+result = find_shortest_loop(start_node=head,search_criteria=sc)
 
-print([n.device.name for n in result])
-print(source_device.name)
+print("Devices: \n" + ", ".join([d.name for d in devices]))
+print("Models: \n" + ", ".join([m.name for m in models]))
+print("Constraints:")
+for m,d in sc["layer_must_be_in_device"].items():
+   print(f"Model {m.name} must be in device {d.name}")
+for m,d in sc["layer_must_not_be_in_device"].items():
+   print(f"Model {m.name} must not be in device {d.name}")
+
+if result is None:
+   print("No path found")
+   exit(0)
+   
+class Slice(NamedTuple):
+   models:List[Model]
+   slice_index:Tuple[int,int]
+   device:Device
+   
+def generate_slices(op:OptimalPath)->List[Slice]:
+   l = 1
+   r = 2
+   
+   slices:List[Slice] = []
+   while r < len(op.path)-1:
+      if op.path[r].device != op.path[l].device:
+         nodes_slice = op.path[l:r]
+         s = Slice(models=[n.model for n in nodes_slice],slice_index=(l,r),device=op.path[r].device)
+         slices.append(s)
+         l = r
+      r+=1
+   return slices
+         
+
+   
+
+print("Optimal Path: \n" + ",\n".join([ f"<MODEL: {n.model} DEVICE: {n.device}>" for n in result.path]))
+print("Penalty: " + str(result.penalty))
+
+## slices = generate_slices(result)
+## 
+## print("OPTIMAL SLICES: ")
+## for s in slices:
+##    print(f"<SLICE model: {', '.join( [m.name for m in s.models])}, device: {s.device}>")
+## 
+
