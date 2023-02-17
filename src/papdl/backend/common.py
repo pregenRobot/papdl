@@ -1,10 +1,10 @@
 from enum import Enum
-from typing import TypedDict,Dict,List,Union,NamedTuple,Tuple
+from typing import TypedDict, Dict, List, Union, NamedTuple, Tuple
 from keras.models import Model
 import tqdm
 import logging
-from colorama import Fore,Style
-from time import time,sleep
+from colorama import Fore, Style
+from time import time, sleep
 from threading import Thread
 from docker.models.services import Service
 from docker.models.images import Image
@@ -12,6 +12,7 @@ from docker.models.networks import Network
 from docker.models.containers import Container
 from docker.models.nodes import Node
 from ..benchmark.configure import SearchConstraints
+
 
 class LoadingBar():
     bar = [
@@ -38,29 +39,30 @@ class LoadingBar():
         " [=          ]",
     ]
     i = 0
-    
+
     def loop(self):
         while self.animate:
-            print(self.bar[self.i%len(self.bar)],end="\r")
-            self.i+=1
+            print(self.bar[self.i % len(self.bar)], end="\r")
+            self.i += 1
             sleep(1)
-            self.i+=1
-    
+            self.i += 1
+
     def start(self):
         self.animate = True
         self.t = Thread(target=self.loop)
         self.t.start()
-    
+
     def stop(self):
         self.animate = False
-        
+
 
 class ContainerBehaviourException(Exception):
-    def __init__(self, message:str,service:Service=None):
+    def __init__(self, message: str, service: Service = None):
         self.message = message
         self.service = service
         super().__init__(self.message)
-    
+
+
 class AppType(Enum):
     ORCHESTRATOR = "Orchestrator"
     BENCHMARKER = "Benchmarker"
@@ -71,7 +73,7 @@ class SplitStrategy(Enum):
     ATOMIC = "atomic"
     SCISSION = "scission"
     SCISSION_TL = "scission_tl"
-    
+
     @staticmethod
     def from_str(label):
         if label == 'scission':
@@ -83,10 +85,11 @@ class SplitStrategy(Enum):
         else:
             raise NotImplementedError
 
+
 class TqdmLoggingHandler(logging.Handler):
-    def __init__(self,level=logging.NOTSET):
+    def __init__(self, level=logging.NOTSET):
         super().__init__(level)
-    
+
     def emit(self, record):
         try:
             msg = self.format(record)
@@ -95,6 +98,7 @@ class TqdmLoggingHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
+
 class ColourFormatter(logging.Formatter):
     format = "[%(asctime)s - %(levelname)s ] %(message)s (%(filename)s:%(lineno)d)"
     FORMATS = {
@@ -102,12 +106,14 @@ class ColourFormatter(logging.Formatter):
         logging.INFO: Fore.YELLOW + format + Fore.RESET,
         logging.ERROR: Fore.RED + format + Fore.RESET
     }
+
     def format(self, record):
         log_fmt = self.FORMATS.get(record.levelno)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
-def prepare_logger(level=logging.DEBUG)->logging.Logger:
+
+def prepare_logger(level=logging.DEBUG) -> logging.Logger:
     logger = logging.getLogger(__name__)
     logger.setLevel(level)
 
@@ -117,37 +123,39 @@ def prepare_logger(level=logging.DEBUG)->logging.Logger:
     logger.addHandler(ch)
     return logger
 
+
 class Preferences(TypedDict):
     service_idle_detection: int
-    startup_timeout:int
+    startup_timeout: int
     split_strategy: SplitStrategy
-    logger:logging.Logger
-    search_constraints:SearchConstraints
+    logger: logging.Logger
+    search_constraints: SearchConstraints
 
 
 ##########
 
 
 class BenchmarkSetup(TypedDict):
-    project_name:str
-    registry_service:Service
-    iperf_service:Service
-    network:Network
-    benchmark_image:Image
+    project_name: str
+    registry_service: Service
+    iperf_service: Service
+    network: Network
+    benchmark_image: Image
+
 
 class NodeBenchmarkMetadata(TypedDict):
-    node:Node
-    task:Dict
-    raw_log:str
-    host_ip:str
-    docker_dns_ip:str
+    node: Node
+    task: Dict
+    raw_log: str
+    host_ip: str
+    docker_dns_ip: str
+
 
 class NodeBenchmark(TypedDict):
-    result:Dict
-    metadata:NodeBenchmarkMetadata
+    result: Dict
+    metadata: NodeBenchmarkMetadata
+
 
 class PapdlTest(TypedDict):
-    benchmark:List[NodeBenchmark]
-    benchmark_setup:BenchmarkSetup
-    
-    
+    benchmark: List[NodeBenchmark]
+    benchmark_setup: BenchmarkSetup

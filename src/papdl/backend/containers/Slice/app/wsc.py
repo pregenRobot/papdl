@@ -8,22 +8,22 @@ import io
 
 
 class Wsc():
-    def __init__(self, id:str, host:str, port:int,logger:Logger):
+    def __init__(self, id: str, host: str, port: int, logger: Logger):
         self.id = id
         self.host = host
         self.port = port
         self.conn = None
-        self.connected:bool = False
+        self.connected: bool = False
         self.url = f"ws://{self.host}:{self.port}"
         self.server_logger = logger
-    
-    def serve(self,handler:Callable):
+
+    def serve(self, handler: Callable):
         if not self.connected:
             self.server_logger.info(f"Attempting to serve {self.url}")
-            self.conn = ws_serve(handler,self.host,self.port)
+            self.conn = ws_serve(handler, self.host, self.port)
             self.connected = True
             self.server_logger.info(f"Served {self.url}")
-        
+
     async def connect(self):
         while not self.connected:
             try:
@@ -36,7 +36,7 @@ class Wsc():
                 self.server_logger.info(f"Reattempting forward_out {self.url}")
                 sleep(1)
 
-    async def send(self, array:np.ndarray):
+    async def send(self, array: np.ndarray):
         write_buff = io.BytesIO()
         np.save(write_buff, array, allow_pickle=True)
         write_buff.seek(0)
@@ -46,7 +46,7 @@ class Wsc():
         read_buff = io.BytesIO()
         read_buff.write(data)
         read_buff.seek(0)
-        return np.load(read_buff,allow_pickle=True)
-    
+        return np.load(read_buff, allow_pickle=True)
+
     def close(self):
         self.conn.close()

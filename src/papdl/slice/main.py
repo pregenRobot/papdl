@@ -3,7 +3,7 @@ from .slice import slice_model
 from keras.models import load_model
 import traceback
 from ..benchmark.main import get_optimal_slices
-from ..backend.common import SplitStrategy,Preferences, prepare_logger
+from ..backend.common import SplitStrategy, Preferences, prepare_logger
 from ..benchmark.configure import SearchConstraints
 from logging import DEBUG
 import os
@@ -15,12 +15,12 @@ import os
 @click.option("-x", "--strategy", default="scission")
 @click.option("-a", "--strategyargs", default=None)
 def slice(
-    model_path:str,
-    output:str,
-    strategy:str,
-    strategyargs:str):
+        model_path: str,
+        output: str,
+        strategy: str,
+        strategyargs: str):
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    
+
     model = None
     logger = prepare_logger(DEBUG)
     try:
@@ -32,9 +32,9 @@ def slice(
     logger.info("Loading Model...")
     logger.info(model)
     logger.info("Slicing Model...")
-    
+
     sliced_model = slice_model(model)
-    
+
     pref = Preferences(
         service_idle_detection=600,
         split_strategy=SplitStrategy.from_str(strategy),
@@ -45,14 +45,11 @@ def slice(
             layer_must_not_be_in_device={}
         )
     )
-    
-    logger.info(f"Calculating Optimal slices with pref: {pref}...") 
+
+    logger.info(f"Calculating Optimal slices with pref: {pref}...")
 
     try:
         get_optimal_slices(sliced_model, pref)
     except NotImplementedError:
         logger.error('Unknown split stretegy')
         exit(1)
-    
-    
-    

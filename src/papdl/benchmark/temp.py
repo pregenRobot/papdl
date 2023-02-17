@@ -1,7 +1,8 @@
 
-from json import loads,dumps
+import heapq
+from json import loads, dumps
 from enum import Enum
-from typing import Dict, List, TypedDict,Union,Set,Tuple,NamedTuple
+from typing import Dict, List, TypedDict, Union, Set, Tuple, NamedTuple
 from copy import deepcopy
 import pandas as pd
 from collections import deque
@@ -249,254 +250,308 @@ test_input = """
 }"""
 
 test = loads(test_input)
+
+
 class Model():
-   def __init__(self, name):
-      self.name = name
+    def __init__(self, name):
+        self.name = name
 
-   def __hash__(self):
-      return hash(self.name)
+    def __hash__(self):
+        return hash(self.name)
 
-   def __eq__(self,other):
-      if other is None:
-         return False
-      if not isinstance(other, Model):
-         return False
-      return other.name == self.name
-   
-   def __str__(self):
-      return self.name
+    def __eq__(self, other):
+        if other is None:
+            return False
+        if not isinstance(other, Model):
+            return False
+        return other.name == self.name
+
+    def __str__(self):
+        return self.name
+
 
 class Device():
-   def __init__(self, name):
-      self.name = name
-   
-   def __hash__(self):
-      return hash(self.name)
+    def __init__(self, name):
+        self.name = name
 
-   def __eq__(self,other):
-      if isinstance(other, Device):
-         return other.name == self.name
-      else:
-         return False
-      
-   def __str__(self):
-      return self.name
+    def __hash__(self):
+        return hash(self.name)
 
-devices:List[Device] = [Device(k) for k in list(test.keys())]
+    def __eq__(self, other):
+        if isinstance(other, Device):
+            return other.name == self.name
+        else:
+            return False
+
+    def __str__(self):
+        return self.name
+
+
+devices: List[Device] = [Device(k) for k in list(test.keys())]
 source_device = devices[0]
 
-models:List[Model] = [Model(m) for m in sorted(list(test[source_device.name]['model_performance'].keys()))]
+models: List[Model] = [Model(m) for m in sorted(
+    list(test[source_device.name]['model_performance'].keys()))]
 
 input_size = 100
-  
+
 
 class Node():
-   def __init__(self,model:Model=None, device:Device=None, paths:List["Path"]=None):
-      self.model:Model = model
-      self.device:Device = device
-      self.paths:List["Path"] = paths
-   
-   def __hash__(self)->int:
-      if self.model is None:
-         return hash("NULL" + "-" + self.device.name)
-      else:
-         return hash(self.model.name + "-" + self.device.name)
-   
-   def __eq__(self,other:"Node")->bool:
-      if isinstance(other,Node):
-         if self.model is None and other.model is not None:
-            return False
+    def __init__(self, model: Model = None, device: Device = None,
+                 paths: List["Path"] = None):
+        self.model: Model = model
+        self.device: Device = device
+        self.paths: List["Path"] = paths
 
-         if other.model is None and self.model is not None:
-            return False
-         
-         if self.model is None and other.model is None:
-            return self.device.name == other.device.name
+    def __hash__(self) -> int:
+        if self.model is None:
+            return hash("NULL" + "-" + self.device.name)
+        else:
+            return hash(self.model.name + "-" + self.device.name)
 
-         return self.model.name == other.model.name and self.device.name == other.device.name
-      return False
-   
-   def __str_children(self)->str:
-      result = []
-      p:"Path"
-      for p in self.paths:
-         model_name = p['node'].model.name if p['node'].model is not None else "NULL"
-         result.append(f"*{model_name}-{p['node'].device.name}-{p['penalty_ms']}*")
-      return "\n".join(result)
-         
-   def __detailstr__(self)->str:
-      model_name = "NULL" if self.model is None else self.model.name
-      return f"<NODE model:{model_name} device:{self.device.name} children=[\n{self.__str_children()}]>"
+    def __eq__(self, other: "Node") -> bool:
+        if isinstance(other, Node):
+            if self.model is None and other.model is not None:
+                return False
 
-   def __str__(self)->str:
-      model_name = "NULL" if self.model is None else self.model.name
-      return f"<NODE model:{model_name} device:{self.device.name}]>"
+            if other.model is None and self.model is not None:
+                return False
+
+            if self.model is None and other.model is None:
+                return self.device.name == other.device.name
+
+            return self.model.name == other.model.name and self.device.name == other.device.name
+        return False
+
+    def __str_children(self) -> str:
+        result = []
+        p: "Path"
+        for p in self.paths:
+            model_name = p['node'].model.name if p['node'].model is not None else "NULL"
+            result.append(
+                f"*{model_name}-{p['node'].device.name}-{p['penalty_ms']}*")
+        return "\n".join(result)
+
+    def __detailstr__(self) -> str:
+        model_name = "NULL" if self.model is None else self.model.name
+        return f"<NODE model:{model_name} device:{self.device.name} children=[\n{self.__str_children()}]>"
+
+    def __str__(self) -> str:
+        model_name = "NULL" if self.model is None else self.model.name
+        return f"<NODE model:{model_name} device:{self.device.name}]>"
+
 
 class Path(TypedDict):
-   node:Node
-   penalty_ms:float
-
-visit_node_map:Dict[Node,Node] = {}
-
-def calculate_performance_penalty(destination:Device, model:Model):
-   return test[destination.name]["model_performance"][model.name]["benchmark_time"]
-def calculate_network_penalty(source:Device, destination:Device, filesize_to_send:int):
-   stats = test[source.name]["network_performance"][destination.name]
-   latency = stats["latency"]["rtt_avg_ms"] / 1000 # get in seconds
-   bandwidth = stats["bandwidth"]["sent_bps"]
-   return (latency + (filesize_to_send / bandwidth)) * 1000
-def calculate_network_penalty_from_model(source: Device, destination:Device, model:Model):
-   filesize_to_send = test[source.name]["model_performance"][model.name]["benchmark_size"]
-   return calculate_network_penalty(source,destination,filesize_to_send)
-def generate_path(source:Device, destination:Device, next_model:Model)->Path:
-
-   penalty:float
-   if next_model is not None:
-      ## Generating for first node
-      penalty = calculate_network_penalty_from_model(source,destination,next_model)
-      penalty += calculate_performance_penalty(destination,next_model)
-   else:
-      penalty = calculate_network_penalty(source,destination,input_size)
-   
-   ## If node was previously computed
-   temp:Node = Node(model=next_model,device=destination)
-   path:Path
-   if temp in visit_node_map:
-      path = Path(node=visit_node_map.get(temp),penalty_ms=penalty)
-   else:
-      path = Path(node=Node(model=next_model,device=destination,paths=[]),penalty_ms=penalty)
-   return path
+    node: Node
+    penalty_ms: float
 
 
-def rec_construct_path(models_left:List[Model],currNode:Node):
-   ## Check for duplicate node construct here
-   if currNode in visit_node_map:
-      return
+visit_node_map: Dict[Node, Node] = {}
 
-   visit_node_map[currNode] = currNode
-   if len(models_left) == 0:
-      currNode.paths = [
-         generate_path(source=currNode.device,destination=source_device,next_model=None)
-      ]
-      return
-   else:
-      paths = [generate_path(currNode.device,d,models_left[0]) for d in devices]
-      currNode.paths = paths
-      path:Path
-      for path in currNode.paths:
-         nextNode = path["node"]
-         rec_construct_path(models_left=models_left[1:], currNode=nextNode)
-         
+
+def calculate_performance_penalty(destination: Device, model: Model):
+    return test[destination.name]["model_performance"][model.name]["benchmark_time"]
+
+
+def calculate_network_penalty(
+        source: Device, destination: Device, filesize_to_send: int):
+    stats = test[source.name]["network_performance"][destination.name]
+    latency = stats["latency"]["rtt_avg_ms"] / 1000  # get in seconds
+    bandwidth = stats["bandwidth"]["sent_bps"]
+    return (latency + (filesize_to_send / bandwidth)) * 1000
+
+
+def calculate_network_penalty_from_model(
+        source: Device, destination: Device, model: Model):
+    filesize_to_send = test[source.name]["model_performance"][model.name]["benchmark_size"]
+    return calculate_network_penalty(source, destination, filesize_to_send)
+
+
+def generate_path(source: Device, destination: Device,
+                  next_model: Model) -> Path:
+
+    penalty: float
+    if next_model is not None:
+        # Generating for first node
+        penalty = calculate_network_penalty_from_model(
+            source, destination, next_model)
+        penalty += calculate_performance_penalty(destination, next_model)
+    else:
+        penalty = calculate_network_penalty(source, destination, input_size)
+
+    # If node was previously computed
+    temp: Node = Node(model=next_model, device=destination)
+    path: Path
+    if temp in visit_node_map:
+        path = Path(node=visit_node_map.get(temp), penalty_ms=penalty)
+    else:
+        path = Path(
+            node=Node(
+                model=next_model,
+                device=destination,
+                paths=[]),
+            penalty_ms=penalty)
+    return path
+
+
+def rec_construct_path(models_left: List[Model], currNode: Node):
+    # Check for duplicate node construct here
+    if currNode in visit_node_map:
+        return
+
+    visit_node_map[currNode] = currNode
+    if len(models_left) == 0:
+        currNode.paths = [
+            generate_path(
+                source=currNode.device,
+                destination=source_device,
+                next_model=None)
+        ]
+        return
+    else:
+        paths = [
+            generate_path(
+                currNode.device,
+                d,
+                models_left[0]) for d in devices]
+        currNode.paths = paths
+        path: Path
+        for path in currNode.paths:
+            nextNode = path["node"]
+            rec_construct_path(models_left=models_left[1:], currNode=nextNode)
+
 
 head = Node(
-   model=None,
-   device=source_device,
+    model=None,
+    device=source_device,
 )
-## visit_node_map[head] = head
-rec_construct_path(models_left=models,currNode=head)
+# visit_node_map[head] = head
+rec_construct_path(models_left=models, currNode=head)
 
-## for n in sorted(visit_node_map.values(),key=lambda n: "n" if n.model is None else n.model.name ):
-##    print(n)
-##    print("")
-import heapq
+# for n in sorted(visit_node_map.values(),key=lambda n: "n" if n.model is None else n.model.name ):
+# print(n)
+# print("")
 
 
 class SearchStatus(NamedTuple):
-   total_distance:float
-   path:Path
+    total_distance: float
+    path: Path
+
 
 class OptimalPath(NamedTuple):
-   path:List[Node]
-   penalty:float
+    path: List[Node]
+    penalty: float
+
 
 class SearchCriterion(TypedDict):
-   layer_must_be_in_device:Dict[Model,Device]
-   layer_must_not_be_in_device:Dict[Model,Device]
+    layer_must_be_in_device: Dict[Model, Device]
+    layer_must_not_be_in_device: Dict[Model, Device]
 
 
-def valid_path(path:List[Node],criteria:SearchCriterion):
-   for node in path:
-      for model,device in criteria["layer_must_be_in_device"].items():
-         if model == node.model and device != node.device:
-            return False
-   
-   for node in path:
-      for model,device in criteria["layer_must_not_be_in_device"].items():
-         if model == node.model and device == node.device:
-            return False
-   
-   return True
-   
-def find_shortest_loop(start_node:Node,search_criteria:SearchCriterion)->Union[OptimalPath,None]:
-   visited = {start_node: [start_node]}
-   queue:List[SearchStatus] = [SearchStatus(0,Path(node=start_node,penalty_ms=0))]
-   while queue:
-      total_penalty_ms, path = heapq.heappop(queue)
-      current_node = path["node"]
-      for child_path in current_node.paths:
-         child_node = child_path["node"]
-         if child_node not in visited:
-            new_path = visited[current_node] + [child_node] # Make a copy
-            if valid_path(new_path,criteria=search_criteria):
-               visited[child_node] = new_path
-               new_penalty = total_penalty_ms + child_path["penalty_ms"]
-               heapq.heappush(
-                  queue,
-                  SearchStatus(total_distance=new_penalty,path=Path(node=child_node,penalty_ms=new_penalty))
-               )
-         elif child_node == start_node and len(visited[current_node]) > 1: # Found a loop
-            return OptimalPath(path=visited[current_node] + [start_node],penalty=child_path["penalty_ms"])
-   return None # No loop found
+def valid_path(path: List[Node], criteria: SearchCriterion):
+    for node in path:
+        for model, device in criteria["layer_must_be_in_device"].items():
+            if model == node.model and device != node.device:
+                return False
+
+    for node in path:
+        for model, device in criteria["layer_must_not_be_in_device"].items():
+            if model == node.model and device == node.device:
+                return False
+
+    return True
+
+
+def find_shortest_loop(
+        start_node: Node, search_criteria: SearchCriterion) -> Union[OptimalPath, None]:
+    visited = {start_node: [start_node]}
+    queue: List[SearchStatus] = [
+        SearchStatus(
+            0,
+            Path(
+                node=start_node,
+                penalty_ms=0))]
+    while queue:
+        total_penalty_ms, path = heapq.heappop(queue)
+        current_node = path["node"]
+        for child_path in current_node.paths:
+            child_node = child_path["node"]
+            if child_node not in visited:
+                new_path = visited[current_node] + [child_node]  # Make a copy
+                if valid_path(new_path, criteria=search_criteria):
+                    visited[child_node] = new_path
+                    new_penalty = total_penalty_ms + child_path["penalty_ms"]
+                    heapq.heappush(
+                        queue,
+                        SearchStatus(
+                            total_distance=new_penalty, path=Path(
+                                node=child_node, penalty_ms=new_penalty))
+                    )
+            # Found a loop
+            elif child_node == start_node and len(visited[current_node]) > 1:
+                return OptimalPath(
+                    path=visited[current_node] + [start_node], penalty=child_path["penalty_ms"])
+    return None  # No loop found
 
 
 sc = SearchCriterion(
-      layer_must_be_in_device={models[-2]:source_device, models[-1]:devices[2]},
-      layer_must_not_be_in_device={models[0]:source_device,models[1]:devices[1],models[2]:devices[2]}
-   )
+    layer_must_be_in_device={
+        models[-2]: source_device, models[-1]: devices[2]},
+    layer_must_not_be_in_device={
+        models[0]: source_device,
+        models[1]: devices[1],
+        models[2]: devices[2]}
+)
 
-result = find_shortest_loop(start_node=head,search_criteria=sc)
+result = find_shortest_loop(start_node=head, search_criteria=sc)
 
 print("Devices: \n" + ", ".join([d.name for d in devices]))
 print("Models: \n" + ", ".join([m.name for m in models]))
 print("Constraints:")
-for m,d in sc["layer_must_be_in_device"].items():
-   print(f"Model {m.name} must be in device {d.name}")
-for m,d in sc["layer_must_not_be_in_device"].items():
-   print(f"Model {m.name} must not be in device {d.name}")
+for m, d in sc["layer_must_be_in_device"].items():
+    print(f"Model {m.name} must be in device {d.name}")
+for m, d in sc["layer_must_not_be_in_device"].items():
+    print(f"Model {m.name} must not be in device {d.name}")
 
 if result is None:
-   print("No path found")
-   exit(0)
-   
+    print("No path found")
+    exit(0)
+
+
 class Slice(NamedTuple):
-   models:List[Model]
-   slice_index:Tuple[int,int]
-   device:Device
-   
-def generate_slices(op:OptimalPath)->List[Slice]:
-   l = 1
-   r = 2
-   
-   slices:List[Slice] = []
-   while r < len(op.path):
-      if op.path[r].device != op.path[l].device:
-         nodes_slice = op.path[l:r]
-         s = Slice(models=[n.model for n in nodes_slice],slice_index=(l,r),device=op.path[l].device)
-         slices.append(s)
-         l = r
-      r+=1
-   return slices
-         
+    models: List[Model]
+    slice_index: Tuple[int, int]
+    device: Device
 
-   
 
-print("Optimal Path: \n" + ",\n".join([ f"<MODEL: {n.model} DEVICE: {n.device}>" for n in result.path]))
+def generate_slices(op: OptimalPath) -> List[Slice]:
+    l = 1
+    r = 2
+
+    slices: List[Slice] = []
+    while r < len(op.path):
+        if op.path[r].device != op.path[l].device:
+            nodes_slice = op.path[l:r]
+            s = Slice(
+                models=[
+                    n.model for n in nodes_slice],
+                slice_index=(
+                    l,
+                    r),
+                device=op.path[l].device)
+            slices.append(s)
+            l = r
+        r += 1
+    return slices
+
+
+print("Optimal Path: \n" +
+      ",\n".join([f"<MODEL: {n.model} DEVICE: {n.device}>" for n in result.path]))
 print("Penalty: " + str(result.penalty))
 
 slices = generate_slices(result)
 
 print("OPTIMAL SLICES: ")
 for s in slices:
-   print(f"<SLICE model: {', '.join( [m.name for m in s.models])}, device: {s.device}>")
-
-
+    print(
+        f"<SLICE model: {', '.join( [m.name for m in s.models])}, device: {s.device}>")

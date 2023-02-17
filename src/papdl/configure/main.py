@@ -1,5 +1,6 @@
 import click
 
+
 @click.command()
 @click.argument("model")
 @click.option("-n", "network", default="local")

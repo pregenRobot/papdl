@@ -4,15 +4,18 @@ from collections.abc import Iterable
 from enum import Enum
 from typing import List
 
+
 class Slice:
     def __init__(self):
         self.model: Model = None
         self.input_layer = 0
         self.output_layer = 0
         self.second_prediction = 0
-        self.output_size = 0  
+        self.output_size = 0
 
 # Recursively gets the output of a layer, used to build up a submodel
+
+
 def get_output_of_layer(layer, new_input, starting_layer_name):
     global layer_outputs
     if layer.name in layer_outputs:
@@ -32,7 +35,8 @@ def get_output_of_layer(layer, new_input, starting_layer_name):
 
     pl_outs = []
     for pl in prev_layers:
-        pl_outs.extend([get_output_of_layer(pl, new_input, starting_layer_name)])
+        pl_outs.extend([get_output_of_layer(
+            pl, new_input, starting_layer_name)])
 
     out = layer(pl_outs[0] if len(pl_outs) == 1 else pl_outs)
     layer_outputs[layer.name] = out
@@ -51,15 +55,20 @@ def get_model(input_layer: int, output_layer: int):
 
         return Model(new_input, selected_model.layers[output_layer].output)
     else:
-        new_input = Input(batch_shape=selected_model.get_layer(starting_layer_name).get_input_shape_at(0))
+        new_input = Input(batch_shape=selected_model.get_layer(
+            starting_layer_name).get_input_shape_at(0))
 
-    new_output = get_output_of_layer(selected_model.layers[output_layer], new_input, starting_layer_name)
+    new_output = get_output_of_layer(
+        selected_model.layers[output_layer],
+        new_input,
+        starting_layer_name)
     model = Model(new_input, new_output)
 
     return model
 
 
-# Navigates the model structure to find regions without parallel paths, returns valid split locations
+# Navigates the model structure to find regions without parallel paths,
+# returns valid split locations
 def create_valid_splits():
     global selected_model
     model = selected_model
@@ -73,30 +82,30 @@ def create_valid_splits():
         if len(layer._outbound_nodes) > 1:
             multi_output_count += len(layer._outbound_nodes) - 1
 
-        if type(layer._inbound_nodes[0].inbound_layers) == list:
+        if isinstance(layer._inbound_nodes[0].inbound_layers, list):
             if len(layer._inbound_nodes[0].inbound_layers) > 1:
                 multi_output_count -= (
-                        len(layer._inbound_nodes[0].inbound_layers) - 1)
+                    len(layer._inbound_nodes[0].inbound_layers) - 1)
 
         if multi_output_count == 0:
             valid_splits.append(layer_index)
 
         layer_index += 1
 
-    return valid_splits 
+    return valid_splits
 
 
 selected_model = None
 
 
-def slice_model(model: Model)->List[Slice]:
+def slice_model(model: Model) -> List[Slice]:
     global selected_model
     global layer_outputs
     layer_outputs = {}
     selected_model = model
 
     split_points = create_valid_splits()
-    
+
     sliced_network: List[Slice] = []
 
     for index, split_point in enumerate(split_points):
@@ -114,5 +123,5 @@ def slice_model(model: Model)->List[Slice]:
 
         result.model = get_model(first_point, split_point)
         sliced_network.append(result)
-    
+
     return sliced_network
