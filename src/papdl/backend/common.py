@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import TypedDict,Dict,List,Union
+from typing import TypedDict,Dict,List,Union,NamedTuple,Tuple
 from keras.models import Model
 import tqdm
 import logging
@@ -11,6 +11,7 @@ from docker.models.images import Image
 from docker.models.networks import Network
 from docker.models.containers import Container
 from docker.models.nodes import Node
+from ..benchmark.configure import SearchConstraints
 
 class LoadingBar():
     bar = [
@@ -65,13 +66,6 @@ class AppType(Enum):
     BENCHMARKER = "Benchmarker"
     SLICE = "Slice"
 
-class Slice:
-    def __init__(self):
-        self.model: Model = None
-        self.input_layer = 0
-        self.output_layer = 0
-        self.second_prediction = 0
-        self.output_size = 0 
 
 class SplitStrategy(Enum):
     ATOMIC = "atomic"
@@ -113,12 +107,12 @@ class ColourFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
-def prepare_logger(level=logging.NOTSET)->logging.Logger:
+def prepare_logger(level=logging.DEBUG)->logging.Logger:
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(level)
 
     ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    ch.setLevel(level=level)
     ch.setFormatter(ColourFormatter())
     logger.addHandler(ch)
     return logger
@@ -128,6 +122,8 @@ class Preferences(TypedDict):
     startup_timeout:int
     split_strategy: SplitStrategy
     logger:logging.Logger
+    search_constraints:SearchConstraints
+
 
 ##########
 

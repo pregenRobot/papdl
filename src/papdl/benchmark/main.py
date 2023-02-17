@@ -13,6 +13,7 @@ from docker.types import RestartPolicy
 from time import sleep,time
 from json import loads
 from copy import deepcopy
+from .configure import Configuration,Configurer
 
 preferences:Preferences
 loadingBar:LoadingBar
@@ -49,14 +50,6 @@ def benchmark_slices(slice_list:List[Slice])->Dict:
 #         )
 #     )
 
-
-## def translate_node_ip_to_node_id(ds:DeploymentStatus, statistics:Dict)->Dict:
-##     for device,s in statistics:
-##         for ip,network_benchmark in s["network_performance"]:
-##             temp = deepcopy(statistics[device][ip])
-##             
-##             
-##             
 
 def translate_statistics(ds:DeploymentStatus, statistics:Dict)->Dict:
     ip_to_node_mapping = {v: k for k, v in ds.node_ip_mapping.items()}
@@ -99,10 +92,24 @@ def scission_strategy(slice_list:List[Slice])->Dict:
         loadingBar.stop()
     return translate_statistics(ds, statistics)
 
-def get_optimal_slices(slice_list: List[Slice], arg_preferences:Preferences):
+def get_optimal_slices(
+    slice_list: List[Slice],
+    arg_preferences:Preferences):
     global preferences
     global loadingBar
     loadingBar = LoadingBar()
     preferences = arg_preferences
     benchmark_results = benchmark_slices(slice_list)
     print(benchmark_results)
+    configurer = Configurer(logger=arg_preferences["logger"])
+    
+    config = configurer.parse_from_benchmark(
+        benchmark_result=benchmark_results,
+        source_device = "n7fo72rj7bwdbajkyxypa0ev6",
+        input_size = 100,
+        search_constraints=arg_preferences["search_constraints"]
+        
+    )
+
+    print(config)
+    

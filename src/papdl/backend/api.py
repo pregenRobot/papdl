@@ -5,7 +5,8 @@ from ._api_registry import PapdlRegistryAPI
 from .api_common import PapdlAPIContext,get_papdl_service,get_service_status
 from docker.models.services import Service
 from docker.models.nodes import Node
-from .common import Slice,ContainerBehaviourException
+from .common import ContainerBehaviourException
+from ..slice.slice import Slice
 from time import time,sleep
 from ..backend.common import BenchmarkSetup,NodeBenchmarkMetadata,NodeBenchmark,PapdlTest
 

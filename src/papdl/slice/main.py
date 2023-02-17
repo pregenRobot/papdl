@@ -4,6 +4,7 @@ from keras.models import load_model
 import traceback
 from ..benchmark.main import get_optimal_slices
 from ..backend.common import SplitStrategy,Preferences, prepare_logger
+from ..benchmark.configure import SearchConstraints
 from logging import DEBUG
 import os
 
@@ -38,7 +39,11 @@ def slice(
         service_idle_detection=600,
         split_strategy=SplitStrategy.from_str(strategy),
         logger=logger,
-        startup_timeout=600
+        startup_timeout=600,
+        search_constraints=SearchConstraints(
+            layer_must_be_in_device={},
+            layer_must_not_be_in_device={}
+        )
     )
     
     logger.info(f"Calculating Optimal slices with pref: {pref}...") 

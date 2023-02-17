@@ -25,6 +25,7 @@ colorama = "^0.4.6"
 pyopenssl = "^23.0.0"
 iperf3 = "^0.1.11"
 pythonping = "^1.1.4"
+jsonpickle = "^3.0.1"
 
 [tool.poetry.scripts]
 papdl = "papdl.cli:main"

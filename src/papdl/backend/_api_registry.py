@@ -5,7 +5,8 @@ from docker.models.secrets import Secret
 from docker.types import RestartPolicy,EndpointSpec,SecretReference,NetworkAttachmentConfig
 
 from .api_common import PapdlAPIContext,get_papdl_service,get_papdl_secret
-from .common import Slice,AppType
+from .common import AppType
+from ..slice.slice import Slice
 from typing import List,TypedDict,Tuple,Dict
 from os import path,mkdir,PathLike
 from random import randint

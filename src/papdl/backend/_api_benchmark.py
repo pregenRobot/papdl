@@ -4,7 +4,8 @@ from docker.models.services import Service
 from docker.types import RestartPolicy,NetworkAttachmentConfig
 
 from .api_common import PapdlAPIContext,prepare_build_context,copy_app,get_docker_logs,get_service_node_ip_mapping
-from .common import Slice,AppType
+from .common import AppType
+from ..slice.slice import Slice
 from typing import List,TypedDict
 from os import path,mkdir
 

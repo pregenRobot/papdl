@@ -3,8 +3,15 @@ from keras.models import Model
 from collections.abc import Iterable
 from enum import Enum
 from typing import List
-from ..backend.common import Slice
-        
+
+class Slice:
+    def __init__(self):
+        self.model: Model = None
+        self.input_layer = 0
+        self.output_layer = 0
+        self.second_prediction = 0
+        self.output_size = 0  
+
 # Recursively gets the output of a layer, used to build up a submodel
 def get_output_of_layer(layer, new_input, starting_layer_name):
     global layer_outputs
