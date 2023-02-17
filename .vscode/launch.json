@@ -11,6 +11,14 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Papdl Slice",
+            "type": "python",
+            "request":"launch",
+            "cwd": "${workspaceFolder}",
+            "module":"papdl",
+            "args": ["slice", "${workspaceRoot}/scripts/sample_ff_model"]
         }
     ]
 }

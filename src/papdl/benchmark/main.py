@@ -111,5 +111,5 @@ def get_optimal_slices(
         
     )
 
-    print(config)
+    print(config["blocks"])
     

@@ -62,7 +62,7 @@ class Configurer():
         def __init__(self,
                      model:Layer=None, 
                      device:Worker=None, 
-                     paths:List["Configurer.Path"]=None):
+                     paths:List["Configurer.Path"]=[]):
             self.model:Layer = model
             self.device:Worker = device
             self.paths:List[Configurer.Path] = paths
@@ -96,7 +96,7 @@ class Configurer():
             p:Configurer.Path
             for p in self.paths:
                 model_name = p["node"].model.name if p["node"].model is not None else "NULL"
-                result.append(f"*{model_name}-{p['node'].device.name}-{p['penalty_ms']}*")
+                result.append(f"*{model_name}-{p['node'].device.name}-{p['penalty']}*")
             return "\n".join(result)
         
         def debug_str(self)->str:
@@ -132,11 +132,16 @@ class Configurer():
             for model,device in constraints["layer_must_not_be_in_device"].items():
                 if model == node.model and device == node.device:
                     return False
+        return True
     
-    def __find_shortest_loop(start_node:DecisionNode, constraints:SearchConstraints)-> Union[OptimalPath,None]:
+    def __find_shortest_loop(
+        start_node:DecisionNode,
+        constraints:SearchConstraints
+        )-> Union[OptimalPath,None]:
         visited = {start_node:[start_node]}
         queue:List[Configurer.SearchStatus] = [
-            Configurer.SearchStatus(total_distance=0,
+            Configurer.SearchStatus(
+                total_distance=0,
                 path=Configurer.Path(
                     node = start_node,
                     penalty=0
@@ -149,18 +154,27 @@ class Configurer():
                 child_node = child_path["node"]
                 if child_node not in visited:
                     new_path = visited[current_node] + [child_node]
-                    if Configurer.__valid_path(path=new_path,constraints=constraints):
+                    if Configurer.__valid_path(
+                        path=new_path,
+                        constraints=constraints
+                        ):
                         visited[child_node] = new_path
                         new_penalty = total_penalty + child_path["penalty"]
                         
                         heapq.heappush(
                             queue,
-                            Configurer.SearchStatus(total_distance=new_penalty,path=Configurer.Path(
-                                node=child_node,penalty=new_penalty
-                            ))
+                            Configurer.SearchStatus(
+                                total_distance=new_penalty,
+                                path=Configurer.Path(
+                                    node=child_node,
+                                    penalty=new_penalty
+                                )
+                            )
                         )
                 elif child_node == start_node and len(visited[current_node]) > 1:
-                    return Configurer.OptimalPath(path=visited[current_node] + [start_node],penalty=child_path["penalty"])
+                    return Configurer.OptimalPath(
+                        path=visited[current_node] + [start_node],penalty=child_path["penalty"]
+                    )
         return None
     
     def __calculate_performance_penalty(
@@ -233,7 +247,7 @@ class Configurer():
             )
         else:
             path = Configurer.Path(
-                node=Configurer.node(
+                node=Configurer.DecisionNode(
                     model=next_model,
                     device=destination,
                     paths=[]
@@ -259,6 +273,7 @@ class Configurer():
         if len(models_left) == 0:
             currNode.paths = [
                 Configurer.__generate_path(
+                    benchmark_result=benchmark_result,
                     source=currNode.device,
                     destination=source_device,
                     next_model=None,
@@ -307,11 +322,21 @@ class Configurer():
                     slice_index=(l,r),
                     device=op.path[l].device
                 )
+                slices.append(s)
                 l = r
             r+=1
+
+        if len(slices) == 0:
+            return [
+                SliceBlock(
+                    models = [n.model for n in op.path],
+                    slice_index=(0,len(op.path)),
+                    device=op.path[0].device
+                )
+            ]
+            
+            
         return slices
-    
-        
     
     def parse_from_benchmark(
         self,
@@ -351,13 +376,22 @@ class Configurer():
             devices=devices,
             input_size=input_size
         )
+        # n:Configurer.DecisionNode
+        # for n in sorted(
+        #     visited_node_map.values(),
+        #     key=lambda n: "null" if n.model is None else n.model.name):
+        #     print(n.debug_str())
+        #     print("")
+        
         shortest_loop = Configurer.__find_shortest_loop(
             start_node=head,
             constraints=search_constraints
         )
+
         if shortest_loop is None:
             self.logger.error("No path found with the provided constraints")
             exit(1)
+        
         
         blocks = Configurer.__generate_blocks(shortest_loop)
         return Configuration(
