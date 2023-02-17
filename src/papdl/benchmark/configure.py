@@ -126,12 +126,17 @@ class Configurer():
         for node in path:
             for model,device in constraints["layer_must_be_in_device"].items():
                 if model == node.model and device != node.device:
+                    print("False",node.model.name,node.device.name,model.name, device.name)
                     return False
         
+        node:Configurer.DecisionNode
         for node in path:
             for model,device in constraints["layer_must_not_be_in_device"].items():
                 if model == node.model and device == node.device:
+                    print("False",node.model.name,node.device.name,model.name, device.name)
                     return False
+        
+        print("True",node.model.name,node.device.name)
         return True
     
     def __find_shortest_loop(
@@ -376,16 +381,19 @@ class Configurer():
             devices=devices,
             input_size=input_size
         )
-        # n:Configurer.DecisionNode
-        # for n in sorted(
-        #     visited_node_map.values(),
-        #     key=lambda n: "null" if n.model is None else n.model.name):
-        #     print(n.debug_str())
-        #     print("")
         
         shortest_loop = Configurer.__find_shortest_loop(
             start_node=head,
-            constraints=search_constraints
+            # constraints=search_constraints,
+            constraints={
+                "layer_must_not_be_in_device":{
+                    models[0]:sd,
+                    models[1]:devices[1],
+                    models[4]:sd,
+                    models[-1]:devices[1]
+                },
+                "layer_must_be_in_device":{}
+            }
         )
 
         if shortest_loop is None:
@@ -394,6 +402,10 @@ class Configurer():
         
         
         blocks = Configurer.__generate_blocks(shortest_loop)
+        
+        print([b.device.name for b in blocks])
+        
+
         return Configuration(
             models=models,
             blocks=blocks,
@@ -407,11 +419,12 @@ class Configurer():
     
     def parse_from_configurer_cache(input:str)->Configuration:
         configuration = decode(input)
-        assert(isinstance(configuration,Configuration))
+        ## assert(isinstance(configuration,Configuration))
         return configuration
     
     def dump_configuration(configuration:Configuration)->str:
         return encode(configuration)
+        
     
     
     

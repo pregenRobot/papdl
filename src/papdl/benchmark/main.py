@@ -108,8 +108,11 @@ def get_optimal_slices(
         source_device = "n7fo72rj7bwdbajkyxypa0ev6",
         input_size = 100,
         search_constraints=arg_preferences["search_constraints"]
-        
     )
-
-    print(config["blocks"])
+    with open("temp.json","w+") as f:
+        f.write(Configurer.dump_configuration(config))
+        
+    with open("temp.json","r") as f:
+        c = Configurer.parse_from_configurer_cache(f.read())
+        print([c.device.name for c in c["blocks"]])
     
