@@ -11,7 +11,7 @@ from docker.models.images import Image
 from docker.models.networks import Network
 from docker.models.containers import Container
 from docker.models.nodes import Node
-from ..benchmark.configure import SearchConstraints
+from ..configure.configure import SearchConstraints
 
 
 class LoadingBar():
@@ -124,13 +124,16 @@ def prepare_logger(level=logging.DEBUG) -> logging.Logger:
     return logger
 
 
-class Preferences(TypedDict):
+class BenchmarkPreferences(TypedDict):
     service_idle_detection: int
     startup_timeout: int
     split_strategy: SplitStrategy
     logger: logging.Logger
-    search_constraints: SearchConstraints
 
+
+class ConfigurationPreferences(TypedDict):
+    logger: logging.Logger
+    search_constraints:SearchConstraints
 
 ##########
 

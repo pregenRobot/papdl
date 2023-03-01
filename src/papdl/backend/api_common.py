@@ -4,7 +4,7 @@ from docker.models.images import Image
 from docker.models.services import Service
 from docker.models.secrets import Secret
 from docker.models.networks import Network
-from .common import Preferences, LoadingBar, AppType
+from .common import BenchmarkPreferences, LoadingBar, AppType
 from random_word import RandomWords
 from getpass import getuser
 from os import getuid, path
@@ -31,7 +31,7 @@ class CertSpecs(TypedDict):
 
 
 class PapdlAPIContext:
-    def __init__(self, preference: Preferences = None,
+    def __init__(self, preference: BenchmarkPreferences = None,
                  project_name=None, certSubject: CertSpecs = None):
         project_name: str
         self.client = docker.from_env()

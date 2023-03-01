@@ -3,6 +3,7 @@ from keras.models import Model
 from collections.abc import Iterable
 from enum import Enum
 from typing import List
+from jsonpickle import encode,decode
 
 
 class Slice:
@@ -125,3 +126,11 @@ def slice_model(model: Model) -> List[Slice]:
         sliced_network.append(result)
 
     return sliced_network
+
+
+def slice_encode(layers=List[Slice]):
+    return encode(layers)
+
+def slice_decode(json_str=str)->List[Slice]:
+    return decode(json_str)
+    

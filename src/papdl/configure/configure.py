@@ -418,7 +418,7 @@ class Configurer():
         )
 
     def parse_from_benchmarker_cache(input: str) -> Configuration:
-        return (Configurer.parse_from_benchmark(loads(input)))
+        return Configurer.parse_from_benchmark(loads(input))
 
     def parse_from_configurer_cache(input: str) -> Configuration:
         configuration = decode(input)
