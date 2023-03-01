@@ -26,7 +26,18 @@ def configure(
     
     sc = SearchConstraints(layer_must_be_in_device={},layer_must_not_be_in_device={})
     
-    print(configurer.parse_from_benchmark(benchmark_result=benchmark_result["result"],source_device=source_device,input_size=int(input_size), search_constraints=sc))
+    configuration:Configuration =  configurer.parse_from_benchmark(
+        benchmark_result=benchmark_result["result"],source_device=source_device,
+        input_size=int(input_size), 
+        search_constraints=sc,
+        model_list=benchmark_result["slice_list"])
+    
+    if output is None:
+        output = "configuration.json"
+    
+    with open(output,"w") as f:
+        f.write(Configurer.encode_configuration(configuration))
+        
     
     
     

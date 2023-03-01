@@ -25,6 +25,7 @@ class BenchmarkResult(TypedDict):
     arg_preferences:BenchmarkPreferences
     papdl_api:PapdlAPI
     result:Dict
+    slice_list:List[Slice]
     
 
 def encode_benchmark_result(benchmark_result:BenchmarkResult)->str:
@@ -41,7 +42,7 @@ def benchmark_slices(slice_list: List[Slice],arg_preferences: BenchmarkPreferenc
     api,benchmark_results = scission_strategy(slice_list)
     ## configurer = Configurer(logger=arg_preferences["logger"])
 
-    return BenchmarkResult(arg_preferences=arg_preferences,papdl_api=api,result=benchmark_results)
+    return BenchmarkResult(arg_preferences=arg_preferences,papdl_api=api,result=benchmark_results,slice_list=[sl.model for sl in slice_list])
     ## config = configurer.parse_from_benchmark(
     ##     benchmark_result=benchmark_results,
     ##     source_device="n7fo72rj7bwdbajkyxypa0ev6",

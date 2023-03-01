@@ -3,6 +3,11 @@ from typing import NamedTuple, List, Dict, TypedDict, Union, Tuple
 from json import loads, dumps
 import heapq
 from jsonpickle import encode, decode
+from keras import Model,Sequential
+
+from keras.layers import concatenate
+from ..backend.common import PapdlException
+import logging
 
 
 class Layer():
@@ -47,16 +52,21 @@ class SearchConstraints(TypedDict):
 
 
 class SliceBlock(NamedTuple):
-    models: List[Layer]
+    layers: List[Layer]
     slice_index: Tuple[int, int]
     device: Worker
+    model:Model
 
 
 class Configuration(TypedDict):
-    models: List[Layer]
+    slices: List[Layer]
     blocks: List[SliceBlock]
     devices: List[Worker]
     constraints: SearchConstraints
+    
+class ConfigurationPreferences(TypedDict):
+    logger: logging.Logger
+    search_constraints:SearchConstraints
 
 
 class Configurer():
@@ -315,22 +325,44 @@ class Configurer():
                     input_size=input_size
                 )
 
+    def __fetch_model_from_nodes(nodes:List[DecisionNode],models:List[Model])->List[Model]:
+        result:List[Model] = []
+        for n in nodes:
+            search = [m for m in models if m.name == n.model.name]
+            if len(search) != 1:
+                raise PapdlException("Model names in benchmark.json does not match model names for the ones used for benchmarking. Rerun benchmarking process...")
+            result.append(search[0])
+        return result
+    
+    def __merge_models(models:List[Model])->Model:
+        result_model = Sequential()
+        for model in models:
+            result_model.add(model)
+        result_model.build()
+        return result_model
+        
+        
     def __generate_blocks(
-        op: OptimalPath
+        op: OptimalPath,
+        models: List[Model]
     ) -> List[SliceBlock]:
         l = 1
         r = 2
         slices: List[SliceBlock] = []
         while r < len(op.path):
+            
             if op.path[r].device != op.path[l].device:
                 nodes_slice = op.path[l:r]
                 s = SliceBlock(
-                    models=[
+                    layers=[
                         n.model
                         for n in nodes_slice
                     ],
                     slice_index=(l, r),
-                    device=op.path[l].device
+                    device=op.path[l].device,
+                    model=Configurer.__merge_models(
+                        Configurer.__fetch_model_from_nodes(nodes_slice,models)
+                    )
                 )
                 slices.append(s)
                 l = r
@@ -339,9 +371,12 @@ class Configurer():
         if len(slices) == 0:
             return [
                 SliceBlock(
-                    models=[n.model for n in op.path],
+                    layers=[n.model for n in op.path],
                     slice_index=(0, len(op.path)),
-                    device=op.path[0].device
+                    device=op.path[0].device,
+                    model=Configurer.__merge_models(
+                        Configurer.__fetch_model_from_nodes(op.path)
+                    )
                 )
             ]
 
@@ -352,7 +387,8 @@ class Configurer():
         benchmark_result: Dict,
         source_device: Union[Worker, str],
         input_size: int,
-        search_constraints: SearchConstraints
+        search_constraints: SearchConstraints,
+        model_list:List[Model]
     ) -> Configuration:
         devices: List[Worker] = [
             Worker(k) for k in list(
@@ -406,12 +442,12 @@ class Configurer():
             self.logger.error("No path found with the provided constraints")
             exit(1)
 
-        blocks = Configurer.__generate_blocks(shortest_loop)
+        blocks = Configurer.__generate_blocks(shortest_loop,model_list)
 
         print([b.device.name for b in blocks])
 
         return Configuration(
-            models=models,
+            slices=models,
             blocks=blocks,
             devices=devices,
             constraints=search_constraints
@@ -425,5 +461,8 @@ class Configurer():
         # assert(isinstance(configuration,Configuration))
         return configuration
 
-    def dump_configuration(configuration: Configuration) -> str:
+    def encode_configuration(configuration: Configuration) -> str:
         return encode(configuration)
+    
+    def decode_configuration(json_str:str)->Configuration:
+        return decode(json_str)

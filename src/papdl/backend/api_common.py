@@ -4,6 +4,7 @@ from docker.models.images import Image
 from docker.models.services import Service
 from docker.models.secrets import Secret
 from docker.models.networks import Network
+from docker.models.nodes import Node
 from .common import BenchmarkPreferences, LoadingBar, AppType
 from random_word import RandomWords
 from getpass import getuser
@@ -58,7 +59,7 @@ class PapdlAPIContext:
 
         papdl_networks = get_papdl_network(self)
         if (len(papdl_networks) == 0):
-            self.network = self.client.networks.create(
+            self.network:Network = self.client.networks.create(
                 name=f"papdl_overlay",
                 attachable=True,
                 driver="overlay",
@@ -67,11 +68,11 @@ class PapdlAPIContext:
                 }
             )
         else:
-            self.network = papdl_networks[0]
+            self.network:Network = papdl_networks[0]
 
         self.preference = preference
 
-        self.devices = list(
+        self.devices:List[Node] = list(
             filter(
                 lambda n: n.attrs['Status']['State'] == 'ready',
                 self.client.nodes.list()))

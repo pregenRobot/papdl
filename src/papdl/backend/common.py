@@ -11,7 +11,6 @@ from docker.models.images import Image
 from docker.models.networks import Network
 from docker.models.containers import Container
 from docker.models.nodes import Node
-from ..configure.configure import SearchConstraints
 
 
 class LoadingBar():
@@ -124,6 +123,10 @@ def prepare_logger(level=logging.DEBUG) -> logging.Logger:
     return logger
 
 
+class PapdlException(Exception):
+    def __init__(self,message):
+        self.message = message
+
 class BenchmarkPreferences(TypedDict):
     service_idle_detection: int
     startup_timeout: int
@@ -131,9 +134,6 @@ class BenchmarkPreferences(TypedDict):
     logger: logging.Logger
 
 
-class ConfigurationPreferences(TypedDict):
-    logger: logging.Logger
-    search_constraints:SearchConstraints
 
 ##########
 
