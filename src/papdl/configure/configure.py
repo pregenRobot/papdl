@@ -63,6 +63,7 @@ class Configuration(TypedDict):
     blocks: List[SliceBlock]
     devices: List[Worker]
     constraints: SearchConstraints
+    source_device:Worker
     
 class ConfigurationPreferences(TypedDict):
     logger: logging.Logger
@@ -450,7 +451,8 @@ class Configurer():
             slices=models,
             blocks=blocks,
             devices=devices,
-            constraints=search_constraints
+            constraints=search_constraints,
+            source_device=sd
         )
 
     def parse_from_benchmarker_cache(input: str) -> Configuration:

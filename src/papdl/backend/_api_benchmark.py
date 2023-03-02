@@ -50,7 +50,7 @@ class PapdlBenchmarkAPI:
         build_context = self.prepare_benchmark_build(slices)
 
         self.context.logger.info(
-            f"Building benchmark with image {name} and self.context {build_context}")
+            f"Building benchmark with image {name} and context {build_context}")
         self.context.loadingBar.start()
         image, build_logs = self.context.client.images.build(
             path=build_context,
@@ -66,7 +66,7 @@ class PapdlBenchmarkAPI:
         self.context.cleanup_target["images"].append(image)
         self.context.loadingBar.stop()
 
-        self.context.logger.info(f"Pushing image {name}")
+        self.context.logger.info(f"Pushing image {name} to registry for distribution...")
         self.context.loadingBar.start()
         self.context.client.images.push(name)
         self.context.loadingBar.stop()
