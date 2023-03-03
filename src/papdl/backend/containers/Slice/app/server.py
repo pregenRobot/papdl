@@ -96,9 +96,10 @@ async def process_request(path:str,request_headers:Headers)->Optional[Tuple[HTTP
             return None
         
         if path == "/connect":
-            logger.info(f"Attempting to connect to forward_url: {forward_url}")
-            forward_connection = await ws_connect(f"{forward_url}/predict")
-            logger.info(f"Successfully connected to forward_url: {forward_url}")
+            logger.info(f"Attempting to connect to forward_url: {forward_url}/predict")
+            fwu = f"{forward_url}/predict"
+            forward_connection = await ws_connect(fwu,open_timeout=None)
+            logger.info(f"Successfully connected to forward_url: {fwu}")
             return (HTTPStatus.OK,{},b"")
         
         if path == "/healthcheck":

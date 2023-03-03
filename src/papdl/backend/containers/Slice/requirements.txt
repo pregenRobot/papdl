@@ -3,3 +3,4 @@ keras
 asyncio
 websockets
 watchdog[watchmedo]
+aiohttp

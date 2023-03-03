@@ -6,6 +6,12 @@ ARG local_user
 
 RUN adduser --uid ${local_uid} --gecos "" --disabled-password ${local_user}
 
+RUN apt update -y
+RUN apt install -y iputils-ping
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+RUN apt-get install -y nodejs
+RUN npm install --global wscat
+
 USER ${local_user}
 ENV PATH="/home/${local_user}/.local/bin:${PATH}"
 

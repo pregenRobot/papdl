@@ -15,8 +15,12 @@ import traceback
 from asyncio import Future
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '3'
 from proto.iss_message_pb2 import IssMessage
+from proto.dtype_pb2 import dtype as proto_dtype
+from proto.ndarray_pb2 import ndarray as proto_ndarray
 import uuid
 import requests
+from sanic.log import logger
+import aiohttp
 
 from websockets.legacy.client import Connect
 
@@ -34,7 +38,6 @@ def prepare_logger()->logging.Logger:
     logger.setLevel(logging.DEBUG)
     return logger
 
-logger = prepare_logger()
 # forward_connection:Union[Connect,None] = None
 # forward_url:Union[str,None] = None
 
@@ -66,11 +69,11 @@ async def record_response(request:Request,ws:Websocket):
         try:
             iss_message_input = IssMessage()
             iss_message_input.ParseFromString(data)
-            with app.ctx.rrm_lock:
+            async with app.ctx.rrm_lock:
                 app.ctx.request_response_map[iss_message_input.requestId].set_result(iss_message_input.data)
         except Exception as e:
             logger.error(traceback.format_exc())
-            with app.ctx.rrm_lock:
+            async with app.ctx.rrm_lock:
                 app.ctx.request_response_map[iss_message_input.requestId].set_exception(e)
         
 @app.get("/input")
@@ -85,15 +88,17 @@ async def make_prediction(request:Request):
         batch_size = 1000
         dimensions = (batch_size,) + input_shape
         data = np.random.random_sample(dimensions)
-        requestId:str = uuid.uuid4()
+        requestId:str = str(uuid.uuid4())
 
         iss_message_output = IssMessage()
+        
+
         iss_message_output.requestId = requestId
         iss_message_output.data = data
 
         loop = asyncio.get_running_loop()
         response_future = loop.create_future()
-        with app.ctx.rrm_lock:
+        async with app.ctx.rrm_lock:
             app.ctx.request_response_map[requestId] = response_future
         forward_connection.send(iss_message_output.SerializeToString())
         await response_future
@@ -127,12 +132,12 @@ async def activate_all_slices(request:Request):
         service_name:str
         for service_name in app.ctx.all_slice_services:
             slice_forward_connect_url = f"http://{service_name}:8765/connect"
-            connect_resp = requests.get(slice_forward_connect_url)
-            logger.info(f"Received {connect_resp} from service {service_name}")
-            result[service_name] = {
-                "status":connect_resp.status_code,
-                "response":connect_resp.text
-            }
+            async with aiohttp.ClientSession() as session:
+                async with session.get(slice_forward_connect_url) as resp:
+                    result[service_name] = {
+                        "status" : resp.status,
+                        "response": await resp.text()
+                    }
         return response.json(result,status=HTTPStatus.OK) 
     except Exception:
         logger.error(traceback.format_exc())
@@ -153,11 +158,13 @@ async def queryworker_healthcheck(request:Request):
         service_name:str
         for service_name in app.ctx.all_slice_services:
             healthcheck_url = f"http://{service_name}:8765/healthcheck"
-            health_resp = requests.get(healthcheck_url)
-            result[service_name] = {
-                "status":health_resp.status_code,
-                "response": health_resp.json()
-            }
+            async with aiohttp.ClientSession() as session:
+                async with session.get(healthcheck_url) as resp:
+                    result[service_name] = {
+                        "status":resp.status,
+                        "response": await resp.text()
+                    }
+                    
             
         return response.json(result,status=HTTPStatus.OK)
     except Exception:
@@ -166,4 +173,4 @@ async def queryworker_healthcheck(request:Request):
 
 
 if __name__ == "__main__":
-    app.run(host=CURR_HOST,port=8765,access_log=False)
+    app.run(host=CURR_HOST,port=8765,access_log=True)
