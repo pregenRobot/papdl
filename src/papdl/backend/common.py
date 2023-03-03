@@ -66,6 +66,8 @@ class AppType(Enum):
     ORCHESTRATOR = "Orchestrator"
     BENCHMARKER = "Benchmarker"
     SLICE = "Slice"
+    IPERF = "Iperf"
+    REGISTRY = "Registry"
 
 
 class SplitStrategy(Enum):

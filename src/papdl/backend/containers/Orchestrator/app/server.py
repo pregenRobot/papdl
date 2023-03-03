@@ -121,4 +121,4 @@ async def perform_healthcheck(request:Request):
 
 
 if __name__ == "__main__":
-    app.run(host=CURR_HOST,port=8765,access_log=False,debug=True,dev=True)
+    app.run(host=CURR_HOST,port=8765,access_log=False)

@@ -1,5 +1,6 @@
 import click
 from ..backend.api_common import PapdlAPIContext, get_papdl_service, get_papdl_image, get_papdl_network, get_papdl_secret
+from ..backend.common import AppType
 
 
 @click.option("-b", "--benchmark_images", show_default=True,
@@ -41,19 +42,17 @@ def clean(
         network,
         secrets)
 
-    [print(i.id.split(":")[1]) for i in get_papdl_image(pac)]
-
     if (benchmark_images):
         [i.remove(force=True)
-         for i in get_papdl_image(pac, labels={"type": "benchmark"})]
+         for i in get_papdl_image(pac, labels={"type": AppType.BENCHMARKER.value})]
     if (benchmark_services):
         [s.remove() for s in get_papdl_service(
-            pac, labels={"type": "benchmark"})]
+            pac, labels={"type": AppType.BENCHMARKER.value})]
     if (slice_images):
         [i.remove(force=True)
-         for i in get_papdl_image(pac, labels={"type": "slice"})]
+         for i in get_papdl_image(pac, labels={"type": AppType.SLICE.value})]
     if (slice_services):
-        [s.remove() for s in get_papdl_service(pac, labels={"type": "slice"})]
+        [s.remove() for s in get_papdl_service(pac, labels={"type": AppType.SLICE.value})]
     if (registry_service):
         [s.remove() for s in get_papdl_service(
             pac, labels={"type": "registry"})]

@@ -22,7 +22,7 @@ class PapdlIperfAPI:
         self,
     ) -> Service:
         iperf_services = get_papdl_service(
-            self.context, labels={"type": "iperf"})
+            self.context, labels={"type": AppType.IPERF.value})
         if (len(iperf_services) != 0):
             iperf_services[0].remove()
 
@@ -46,7 +46,7 @@ class PapdlIperfAPI:
             args=["-s"],
             labels={
                 "papdl": "true",
-                "type": "iperf"
+                "type": AppType.IPERF.value
             }
         )
         self.context.cleanup_target["services"].append(service)

@@ -101,7 +101,7 @@ class PapdlRegistryAPI:
     def spawn_registry(self) -> Service:
         self.assign_registry_node()
         registry_services = get_papdl_service(
-            self.context, labels={"type": "registry"})
+            self.context, labels={"type": AppType.REGISTRY.value})
         if (len(registry_services) != 0):
             return registry_services[0]
 
@@ -135,7 +135,7 @@ class PapdlRegistryAPI:
             networks=[nac],
             labels={
                 "papdl": "true",
-                "type": "registry"
+                "type": AppType.REGISTRY.value
             },
             restart_policy=rp
         )

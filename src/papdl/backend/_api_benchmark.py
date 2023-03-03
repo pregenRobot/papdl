@@ -59,7 +59,7 @@ class PapdlBenchmarkAPI:
             labels={
                 "papdl": "true",
                 "project_name": self.context.project_name,
-                "type": "benchmark"
+                "type": AppType.BENCHMARKER.value
             }
         )
         get_docker_logs(self.context, build_logs)
@@ -97,7 +97,7 @@ class PapdlBenchmarkAPI:
             labels={
                 "papdl": "true",
                 "project_name": self.context.project_name,
-                "type": "benchmark"
+                "type": AppType.BENCHMARKER.value
             },
             networks=[nac]
         )

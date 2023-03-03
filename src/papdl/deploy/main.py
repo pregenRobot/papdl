@@ -19,6 +19,7 @@ def deploy(
         with open(configuration_path, "r") as f:
             json_str = f.read()
             configuration = Configurer.decode_configuration(json_str)
+            print(configuration)
         deploy_configuration(configuration)
     except Exception:
         logger.error(traceback.format_exc())

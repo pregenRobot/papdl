@@ -56,7 +56,7 @@ class PapdlService:
             labels={
                 "papdl": "true",
                 "project_name": self.context.project_name,
-                "type": "slice"
+                "type": AppType.SLICE.value
             }
         )
         get_docker_logs(self.context,build_logs)
@@ -68,7 +68,7 @@ class PapdlService:
         self.context.loadingBar.stop()
         self.image = image
         
-    def spawn(self)->"PapdlService":
+    def spawn(self,extra_args={})->"PapdlService":
         image_name = self.image.tags[0]
         self.context.logger.info(f"Spawning service for image {image_name}")
         self.context.loadingBar.start()
@@ -87,7 +87,8 @@ class PapdlService:
             },
             "name":self.service_name,
             "endpoint_spec":es,
-            "networks":[nac]
+            "networks":[nac],
+            **extra_args
         }
         self.service = self.context.client.services.create(**spawning_configuration)
         self.context.cleanup_target["services"].append(self.service)
@@ -123,6 +124,10 @@ class PapdlOrchestratorService(PapdlService):
         copy_app(context=context,app_type=AppType.ORCHESTRATOR,build_context=build_context)
         source_device = configuration["source_device"].name
         super().__init__(context=context,build_context=build_context,target_node=source_device,apptype=AppType.ORCHESTRATOR,name=name)
+        
+    def spawn(self)->"PapdlOrchestratorService":
+        es = EndpointSpec(mode="vip", ports={8765:8765})
+        return super().spawn({"endpoint_spec":es})
     
             
             

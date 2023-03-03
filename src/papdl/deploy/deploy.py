@@ -28,3 +28,6 @@ def deploy_configuration(configuration:Configuration):
     spawned_services:List[PapdlSliceService] = [ss.spawn() for ss in slice_services]
     
     print([ss.service.attrs for ss in spawned_services])
+    
+    spawned_orchestrator = orchestrator_service.spawn()
+    print(spawned_orchestrator.service.attrs)
