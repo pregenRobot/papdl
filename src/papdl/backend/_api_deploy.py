@@ -8,7 +8,7 @@ from .common import PapdlException
 from docker.models.services import Service
 from docker.models.nodes import Node
 from docker.models.images import Image
-from docker.types import NetworkAttachmentConfig,RestartPolicy
+from docker.types import NetworkAttachmentConfig,RestartPolicy,EndpointSpec
 
 
 class PapdlService:
@@ -62,22 +62,18 @@ class PapdlService:
         get_docker_logs(self.context,build_logs)
         self.context.cleanup_target["images"].append(image)
         self.context.loadingBar.stop()
-        self.context.logger.info(f"Pushing image {self.name} to registry for distribution")
+        self.context.logger.info(f"Pushing image {self.image_name} to registry for distribution")
         self.context.loadingBar.start()
+        self.context.client.images.push(self.image_name)
         self.context.loadingBar.stop()
         self.image = image
         
     def spawn(self)->"PapdlService":
         image_name = self.image.tags[0]
         self.context.logger.info(f"Spawning service for image {image_name}")
-        self.context.loadinBar.start()
-        nac = NetworkAttachmentConfig(self.context.project_name)
-        
-        self.service = self.context.client.services.create(
-            image=image_name,
-            command=f"python3 -m server",
-            name=f"{self}"
-        )
+        self.context.loadingBar.start()
+        nac = NetworkAttachmentConfig(self.context.network.name)
+        es = EndpointSpec(mode="vip")
         
         spawning_configuration = {
             "image":image_name,
@@ -87,10 +83,11 @@ class PapdlService:
             "labels":{
                 "papdl": "true",
                 "project_name": self.context.project_name,
-                "type":self.apptype
+                "type":self.apptype.value
             },
-            "networks":[nac],
-            "name":self.service_name
+            "name":self.service_name,
+            "endpoint_spec":es,
+            "networks":[nac]
         }
         self.service = self.context.client.services.create(**spawning_configuration)
         self.context.cleanup_target["services"].append(self.service)
@@ -107,23 +104,23 @@ class PapdlSliceService(PapdlService):
 
         self.slice_block:SliceBlock = sb
         
-        self.context.logger.info(f"Preparing deployment build for slice {slice_indices}")
-        build_context = prepare_build_context(self.context)
+        context.logger.info(f"Preparing deployment build for slice {slice_indices}")
+        build_context = prepare_build_context(context)
         model_path = path.join(build_context,"model")
         mkdir(model_path)
         model = sb.model
         model.save(model_path,overwrite=True)
-        copy_app(self.context,AppType.SLICE,build_context=build_context)
+        copy_app(context,AppType.SLICE,build_context=build_context)
         target_node = sb.device.name
 
         super().__init__(context=context,build_context=build_context,target_node=target_node,apptype=AppType.SLICE, name=name)
         
 class PapdlOrchestratorService(PapdlService):
     def __init__(self,context:PapdlAPIContext, configuration:Configuration):
-        name = f"localhost:443/{self.context.project_name}/orchestrator"
-        self.context.logger.info(f"Preparing orchestrator build...")
-        build_context = prepare_build_context(self.context)
-        copy_app(context=self.context,app_type=AppType.ORCHESTRATOR,build_context=build_context)
+        name = f"{context.project_name}_orchestrator"
+        context.logger.info(f"Preparing orchestrator build...")
+        build_context = prepare_build_context(context)
+        copy_app(context=context,app_type=AppType.ORCHESTRATOR,build_context=build_context)
         source_device = configuration["source_device"].name
         super().__init__(context=context,build_context=build_context,target_node=source_device,apptype=AppType.ORCHESTRATOR,name=name)
     

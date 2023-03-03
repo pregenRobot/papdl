@@ -2,6 +2,7 @@
 
 from time import sleep
 import os
+import json
 
 from websockets.client import connect as ws_connect
 from websockets.server import serve as ws_serve
@@ -16,6 +17,9 @@ import asyncio
 from keras.models import load_model
 from keras import Model
 import getpass
+import traceback
+
+from proto.iss_message_pb2 import IssMessage
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '3'
 
@@ -41,41 +45,74 @@ CURR_HOST = "0.0.0.0"
 CURR_HOST_PORT =  8765
 
 
-async def send(array:np.ndarray):
-    write_buff = io.BytesIO()
-    np.save(write_buff,array,allow_pickle=True)
-    write_buff.seek(0)
-    if forward_connection is None:
-        logger.error("Forward connection has not been established. Dropping input...")
-    else:
-        await forward_connection.send(model.predict(write_buff))
-
 async def forward(websocket):
     async for data in websocket:
-        read_buff = io.BytesIO()
-        read_buff.write(data)
-        read_buff.seek(0)
-        output = model.predict(np.load(read_buff,allow_pickle=True))
+        try:
+            iss_message_input = IssMessage()
 
-        write_buff = io.BytesIO()
-        np.save(write_buff,output,allow_pickle=True)
-        write_buff.seek(0)
-        await forward_connection.send(write_buff)
+            iss_message_input.ParseFromString(data)
+            output = model.predict(iss_message_input.data)
+            
+            iss_message_output = IssMessage()
+            iss_message_output.data = output
+            iss_message_input.requestId = iss_message_input.requestId
+
+            await forward_connection.send(iss_message_output.SerializeToString())
+        except:
+            logger.error("Caught Exception! Dropping input...")
+            logger.error(traceback.format_exc())
+
+# async def forward(websocket):
+#     async for data in websocket:
+#         try:
+#             read_buff = io.BytesIO()
+#             read_buff.write(data)
+#             read_buff.seek(0)
+#             output = model.predict(np.load(read_buff,allow_pickle=True))
+# 
+#             write_buff = io.BytesIO()
+#             np.save(write_buff,output,allow_pickle=True)
+#             write_buff.seek(0)
+#             await forward_connection.send(write_buff)
+#         except Exception:
+#             logger.error("Caught Exception! Dropping input...")
+#             logger.error(traceback.format_exc())
+#             
 
 async def process_request(path:str,request_headers:Headers)->Optional[Tuple[HTTPStatus,HeadersLike,bytes]]:
     global forward_connection
-    if forward_connection is None:
-        forward_url = request_headers.get("Forward-Url")
-        try:
+    global forward_url
+    
+    # Continue with prediction
+    logger.info(f"path={path}")
+    logger.info(f"request_headers={request_headers}")
+
+    try:
+        if path == "/predict":
+            return None
+        
+        if path == "/connect":
+            logger.info(f"Attempting to connect to forward_url: {forward_url}")
             forward_connection = await ws_connect(forward_url)
             logger.info(f"Successfully connected to forward_url: {forward_url}")
             return (HTTPStatus.OK,{},b"")
-        except:
-            logger.error(f"Failed to connect to  forward_url: {forward_url}")
-            return (HTTPStatus.BAD_REQUEST,{},bytes(f"Failed to connect to forward_url: {forward_url}\n","utf-8"))
-            
-    else:
-        return None
+        
+        if path == "/forward":
+            forward_url = request_headers.get("Forward-Url")
+            logger.info(f"Configured forward connection url: {forward_url}")
+            return (HTTPStatus.OK, {},b"")
+        
+        if path == "/healthcheck":
+            logger.info("Generating healthcheck")
+            return (HTTPStatus.OK, {}, bytes(json.dumps({
+                "forward_url":forward_url,
+                "connected": forward_connection is not None,
+                "model_name":model.name
+            }),"utf-8"))
+    except Exception as e:
+        fe = traceback.format_exc()
+        logger.error(fe)
+        return (HTTPStatus.BAD_REQUEST,{},bytes(str(fe),"utf-8"))
 
 async def serve():
     logger.info("Attempting to serve current websocket server...")
