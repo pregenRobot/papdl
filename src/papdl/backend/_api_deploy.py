@@ -68,7 +68,7 @@ class PapdlService:
         self.context.loadingBar.stop()
         self.image = image
         
-    def spawn(self,extra_args={})->"PapdlService":
+    def spawn(self,forward_service:"PapdlService",extra_args={})->"PapdlService":
         image_name = self.image.tags[0]
         self.context.logger.info(f"Spawning service for image {image_name}")
         self.context.loadingBar.start()
@@ -88,6 +88,7 @@ class PapdlService:
             "name":self.service_name,
             "endpoint_spec":es,
             "networks":[nac],
+            "env":[f"FORWARD={forward_service.service_name}"],
             **extra_args
         }
         self.service = self.context.client.services.create(**spawning_configuration)
@@ -118,16 +119,20 @@ class PapdlSliceService(PapdlService):
         
 class PapdlOrchestratorService(PapdlService):
     def __init__(self,context:PapdlAPIContext, configuration:Configuration):
-        name = f"{context.project_name}_orchestrator"
+        name = f"orchestrator"
         context.logger.info(f"Preparing orchestrator build...")
         build_context = prepare_build_context(context)
         copy_app(context=context,app_type=AppType.ORCHESTRATOR,build_context=build_context)
         source_device = configuration["source_device"].name
         super().__init__(context=context,build_context=build_context,target_node=source_device,apptype=AppType.ORCHESTRATOR,name=name)
         
-    def spawn(self)->"PapdlOrchestratorService":
+    def spawn(self,forward_service:"PapdlService",slices:List[PapdlSliceService])->"PapdlOrchestratorService":
         es = EndpointSpec(mode="vip", ports={8765:8765})
-        return super().spawn({"endpoint_spec":es})
+        env = [
+            f"FORWARD={forward_service.service_name}",
+            f"SLICES={','.join([s.service_name for s in slices])}"
+        ]
+        return super().spawn(forward_service=forward_service,extra_args={"endpoint_spec":es,"env":env})
     
             
             

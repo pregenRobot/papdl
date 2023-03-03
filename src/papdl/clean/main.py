@@ -11,6 +11,10 @@ from ..backend.common import AppType
               is_flag=True, flag_value=True)
 @click.option("-S", "--slice_services", show_default=True,
               is_flag=True, flag_value=True)
+@click.option("-o", "--orchestrator_images", show_default=True,
+              is_flag=True, flag_value=True)
+@click.option("-O", "--orchestrator_services", show_default=True,
+              is_flag=True, flag_value=True)
 @click.option("-R", "--registry_service", show_default=True,
               is_flag=True, flag_value=True)
 @click.option("-I", "--iperf_services", show_default=True,
@@ -25,6 +29,8 @@ def clean(
     benchmark_services: bool,
     slice_images: bool,
     slice_services: bool,
+    orchestrator_images:bool,
+    orchestrator_services:bool,
     registry_service: bool,
     iperf_services: bool,
     network: bool,
@@ -48,11 +54,20 @@ def clean(
     if (benchmark_services):
         [s.remove() for s in get_papdl_service(
             pac, labels={"type": AppType.BENCHMARKER.value})]
+
     if (slice_images):
         [i.remove(force=True)
          for i in get_papdl_image(pac, labels={"type": AppType.SLICE.value})]
     if (slice_services):
         [s.remove() for s in get_papdl_service(pac, labels={"type": AppType.SLICE.value})]
+        
+    if (orchestrator_images):
+        [i.remove(force=True)
+         for i in get_papdl_image(pac, labels={"type": AppType.ORCHESTRATOR.value})]
+    if (orchestrator_services):
+        [s.remove() for s in get_papdl_service(pac, labels={"type": AppType.ORCHESTRATOR.value})]
+    
+
     if (registry_service):
         [s.remove() for s in get_papdl_service(
             pac, labels={"type": "registry"})]

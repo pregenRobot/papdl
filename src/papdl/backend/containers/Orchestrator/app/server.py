@@ -1,5 +1,6 @@
 
 import os
+import json
 
 from websockets.client import connect as ws_connect
 from websockets.server import serve as ws_serve
@@ -7,7 +8,7 @@ from websockets.datastructures import Headers,HeadersLike
 from http import HTTPStatus
 import numpy as np
 import io
-from typing import Optional,Dict,Tuple,Union
+from typing import Optional,Dict,Tuple,Union,List
 import logging
 import asyncio
 import traceback
@@ -15,6 +16,7 @@ from asyncio import Future
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '3'
 from proto.iss_message_pb2 import IssMessage
 import uuid
+import requests
 
 from websockets.legacy.client import Connect
 
@@ -39,8 +41,19 @@ logger = prepare_logger()
 CURR_HOST = "0.0.0.0"
 CURR_HOST_PORT = 8765
 
+def get_next_url()->str:
+    forward_service_name = os.environ.get("FORWARD")
+    logger.info(f"Loaded forward url: {forward_service_name}")
+    return f"ws://{forward_service_name}:8765"
+
+def get_all_slices()->List[str]:
+    service_list = os.environ.get("SLICES").split(",")
+    logger.info(f"Loaded slice services: {service_list}")
+    return service_list
+
 app = Sanic("OrchestratorServer")
-app.ctx.forward_url:str = None
+app.ctx.forward_url:str = get_next_url()
+app.ctx.all_slice_services:List[str] = get_all_slices()
 app.ctx.forward_connection:Union[Connect,None] = None
 app.ctx.rrm_lock = asyncio.Lock()
 app.ctx.request_response_map:Dict[str,Future] = {}
@@ -64,10 +77,14 @@ async def record_response(request:Request,ws:Websocket):
 async def make_prediction(request:Request):
     global forward_connection
     try:
-        read_buff = io.BytesIO() 
-        read_buff.write(request.body)
-        read_buff.seek(0)
-        data = np.load(read_buff,allow_pickle=True)
+        # read_buff = io.BytesIO() 
+        # read_buff.write(request.body)
+        # read_buff.seek(0)
+        # data = np.load(read_buff,allow_pickle=True)
+        input_shape = (100,)
+        batch_size = 1000
+        dimensions = (batch_size,) + input_shape
+        data = np.random.random_sample(dimensions)
         requestId:str = uuid.uuid4()
 
         iss_message_output = IssMessage()
@@ -92,32 +109,60 @@ async def make_prediction(request:Request):
     except Exception as e:
         logger.error(traceback.format_exc())
         return response.text("Unable to send input to next service",status=HTTPStatus.BAD_REQUEST)
-        
-@app.get("/forward")
-async def configure_forward(request:Request):
-    try:
-        forward_url = request.headers.get("Forward-Url")
-        app.ctx.forward_url:str = forward_url
-        logger.info(f"Configured forward conection url: {forward_url}")
-        return response.text("Configured forward connection url",status=HTTPStatus.OK)
-    except:
-        logger.error(traceback.format_exc())
-        return response.text("Unable to configure forward url",status=HTTPStatus.BAD_REQUEST)
 
 @app.get("/connect")
 async def connect_to_forward(request:Request):
     try:
-        app.ctx.forward_connection:Connect = await ws_connect(app.ctx.forward_url)
+        app.ctx.forward_connection:Connect = await ws_connect(f"{app.ctx.forward_url}/predict")
         logger.info(f"Successfly connected to forward_url: {app.ctx.forward_url}")
-        return response.text("Configured forward url",status=HTTPStatus.OK)
+        return response.text("Successfully connected to  forward url",status=HTTPStatus.OK)
     except:
         logger.error(traceback.format_exc())
         return response.text("Unable to connect to forward url")
 
+@app.get("/activate")
+async def activate_all_slices(request:Request):
+    try:
+        result = {}
+        service_name:str
+        for service_name in app.ctx.all_slice_services:
+            slice_forward_connect_url = f"http://{service_name}:8765/connect"
+            connect_resp = requests.get(slice_forward_connect_url)
+            logger.info(f"Received {connect_resp} from service {service_name}")
+            result[service_name] = {
+                "status":connect_resp.status_code,
+                "response":connect_resp.text
+            }
+        return response.json(result,status=HTTPStatus.OK) 
+    except Exception:
+        logger.error(traceback.format_exc())
+        return response.text(body="Failed to activate one or all slice nodes",status=HTTPStatus.BAD_REQUEST)
+
+
 @app.get("/healthcheck")
 async def perform_healthcheck(request:Request):
     logger.info(f"Generating healthcheck")
-    return response.json({"forward_url":app.ctx.forward_url, "connected": app.ctx.forward_connection is not None},status=HTTPStatus.OK)
+    return response.json({"forward_url":app.ctx.forward_url, "connected": app.ctx.forward_connection is not None and app.ctx.forward_connection.open},status=HTTPStatus.OK)
+
+
+@app.get("/workerhealthcheck")
+async def queryworker_healthcheck(request:Request):
+    try:
+        logger.info(f"Generating worker healthcheck")
+        result = {}
+        service_name:str
+        for service_name in app.ctx.all_slice_services:
+            healthcheck_url = f"http://{service_name}:8765/healthcheck"
+            health_resp = requests.get(healthcheck_url)
+            result[service_name] = {
+                "status":health_resp.status_code,
+                "response": health_resp.json()
+            }
+            
+        return response.json(result,status=HTTPStatus.OK)
+    except Exception:
+        logger.error(traceback.format_exc())
+        return response.text(body="Failed to fetch health check for one or more workers. Perhaps connections have not been established yet. Run http://\{orchestrator_ip\}:8765/activateworkers",status=HTTPStatus.BAD_REQUEST)
 
 
 if __name__ == "__main__":

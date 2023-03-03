@@ -1,5 +1,5 @@
 
-from ..configure.configure import Configuration
+from ..configure.configure import Configuration,SliceBlock
 from ..backend._api_deploy import PapdlService,PapdlSliceService,PapdlOrchestratorService
 from ..backend.common import BenchmarkPreferences,prepare_logger,SplitStrategy
 from ..backend.api_common import PapdlAPIContext
@@ -25,9 +25,13 @@ def deploy_configuration(configuration:Configuration):
     print(slice_services)
     print(orchestrator_service)
     
-    spawned_services:List[PapdlSliceService] = [ss.spawn() for ss in slice_services]
+    orchestrator_service.spawn(forward_service=slice_services[0],slices=slice_services)
+    for i in range(len(slice_services)-1):
+        curr:PapdlSliceService = slice_services[i]
+        forward:PapdlSliceService = slice_services[i+1]
+        curr.spawn(forward_service=forward)
+    slice_services[-1].spawn(forward_service=orchestrator_service)
+        
+    print([ss.service.attrs for ss in slice_services])
     
-    print([ss.service.attrs for ss in spawned_services])
-    
-    spawned_orchestrator = orchestrator_service.spawn()
-    print(spawned_orchestrator.service.attrs)
+    print(orchestrator_service.service.attrs)

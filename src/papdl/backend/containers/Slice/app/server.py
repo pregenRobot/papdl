@@ -35,9 +35,13 @@ def prepare_logger()->logging.Logger:
     logger.setLevel(logging.DEBUG)
     return logger
     
+def get_next_url()->str:
+    forward_service_name = os.environ.get("FORWARD")
+    return f"ws://{forward_service_name}:8765"
+    
 logger = prepare_logger()
 forward_connection = None
-forward_url = None
+forward_url = get_next_url()
 model:Model = load_model(f"/home/{getpass.getuser()}/model")
 model.compile()
 
@@ -93,20 +97,15 @@ async def process_request(path:str,request_headers:Headers)->Optional[Tuple[HTTP
         
         if path == "/connect":
             logger.info(f"Attempting to connect to forward_url: {forward_url}")
-            forward_connection = await ws_connect(forward_url)
+            forward_connection = await ws_connect(f"{forward_url}/predict")
             logger.info(f"Successfully connected to forward_url: {forward_url}")
             return (HTTPStatus.OK,{},b"")
-        
-        if path == "/forward":
-            forward_url = request_headers.get("Forward-Url")
-            logger.info(f"Configured forward connection url: {forward_url}")
-            return (HTTPStatus.OK, {},b"")
         
         if path == "/healthcheck":
             logger.info("Generating healthcheck")
             return (HTTPStatus.OK, {}, bytes(json.dumps({
                 "forward_url":forward_url,
-                "connected": forward_connection is not None,
+                "connected": forward_connection is not None and forward_connection.open,
                 "model_name":model.name
             }),"utf-8"))
     except Exception as e:
