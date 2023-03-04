@@ -18,8 +18,8 @@ from keras.models import load_model
 from keras import Model
 import getpass
 import traceback
+import uproot
 
-from proto.iss_message_pb2 import IssMessage
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '3'
 
@@ -51,37 +51,29 @@ CURR_HOST_PORT =  8765
 
 async def forward(websocket):
     async for data in websocket:
+        logger.info("Received INPUT!")
         try:
-            iss_message_input = IssMessage()
+            input_buff = io.BytesIO()
+            input_buff.write(data)
+            input_buff.seek(0)
 
-            iss_message_input.ParseFromString(data)
-            output = model.predict(iss_message_input.data)
+            input_uproot_buff = uproot.open(input_buff)
+            logger.info("Received INPUT!")
+            model_input = input_uproot_buff["data"]["array"].array(library="np")
+            logger.info(model_input)
+            model_output = model.predict(model_input)
+            logger.info(model_output)
             
-            iss_message_output = IssMessage()
-            iss_message_output.data = output
-            iss_message_input.requestId = iss_message_input.requestId
+            output_buff = io.BytesIO()
+            output_uproot_buff = uproot.recreate(output_buff)
+            output_uproot_buff["data"] = {"array":model_output}
+            output_uproot_buff["requestId"] = str(input_uproot_buff["requestId"])
 
-            await forward_connection.send(iss_message_output.SerializeToString())
+            output_buff.seek(0)
+            await forward_connection.send(output_buff)
         except:
             logger.error("Caught Exception! Dropping input...")
             logger.error(traceback.format_exc())
-
-# async def forward(websocket):
-#     async for data in websocket:
-#         try:
-#             read_buff = io.BytesIO()
-#             read_buff.write(data)
-#             read_buff.seek(0)
-#             output = model.predict(np.load(read_buff,allow_pickle=True))
-# 
-#             write_buff = io.BytesIO()
-#             np.save(write_buff,output,allow_pickle=True)
-#             write_buff.seek(0)
-#             await forward_connection.send(write_buff)
-#         except Exception:
-#             logger.error("Caught Exception! Dropping input...")
-#             logger.error(traceback.format_exc())
-#             
 
 async def process_request(path:str,request_headers:Headers)->Optional[Tuple[HTTPStatus,HeadersLike,bytes]]:
     global forward_connection

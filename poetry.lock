@@ -240,6 +240,82 @@ pycodestyle = ">=2.10.0"
 tomli = {version = "*", markers = "python_version < \"3.11\""}
 
 [[package]]
+name = "awkward"
+version = "2.0.9"
+description = "Manipulate JSON-like data with NumPy-like idioms."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "awkward-2.0.9-py3-none-any.whl", hash = "sha256:82592837dd774ac83411942f4176808a3671ead611fd45288a5594b14d199be5"},
+    {file = "awkward-2.0.9.tar.gz", hash = "sha256:498e09e85894a952fa8ec4495a7865d2d7a57ab5c522c9e5dcc54419e2793ff2"},
+]
+
+[package.dependencies]
+awkward-cpp = "10"
+importlib-resources = {version = "*", markers = "python_version < \"3.9\""}
+numpy = ">=1.14.5"
+packaging = "*"
+typing-extensions = {version = ">=4.1.0", markers = "python_version < \"3.11\""}
+
+[[package]]
+name = "awkward-cpp"
+version = "10"
+description = "CPU kernels and compiled extensions for Awkward Array"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "awkward-cpp-10.tar.gz", hash = "sha256:d1c856cb6ef5cf3d4f67506a7efc59239f595635865cc9f4ab18440b8bfb11c6"},
+    {file = "awkward_cpp-10-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:3d88cc94a09cb67ba1de41ee36f9078a8f97e299147b4aae88ccc09a4b688dcf"},
+    {file = "awkward_cpp-10-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:06d3edccf7c58c8b08f09d7d9d8d744637bee0442a8e0b77b0f7239f8879b487"},
+    {file = "awkward_cpp-10-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:bc6aa4e4c4955c5a5dacfff0d226e7abc44e262c1f91a480a0af956096d99e35"},
+    {file = "awkward_cpp-10-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:32adc5367a57e4613af22799ce0f967da66c41d5932d86469a8d2272bc32452e"},
+    {file = "awkward_cpp-10-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:75aeeda5409ae425493dd725622cb8f4d4fcfeda9d38ab26d8fcfb223544b4c9"},
+    {file = "awkward_cpp-10-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:78b121eb479c3c524a866d00b59bb278e3812c8933147ffefc6a2a46f47798fc"},
+    {file = "awkward_cpp-10-cp310-cp310-win_amd64.whl", hash = "sha256:647612d447ce9c2c6be1e44bb59bc3da77f28259db47b95806fc4cfd3aa1461d"},
+    {file = "awkward_cpp-10-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:cef130c601f540b41674bcc21c9f7481ff9208e92b92529975c9c67071a82090"},
+    {file = "awkward_cpp-10-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:5c3016db298cf2c8f50bb1af55e41859925fe42d4b73a7aa9bf5358301ef9bef"},
+    {file = "awkward_cpp-10-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:75f03275db8a6aec71903d62b07587539343a0243eac7ba956cb7c1c2c8051a9"},
+    {file = "awkward_cpp-10-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:59d3ab47288510c0794e312b7ddbf4b50b6d4c6d2d6d991b59329a86b3868f84"},
+    {file = "awkward_cpp-10-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:c7522563d2011a4d0ae46e6fc81b635642580095052bfaaf097860e1960489d1"},
+    {file = "awkward_cpp-10-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:67490cd88447ac93c3126b219d73a29a9eed035ee550a5a1c23165b573c72aae"},
+    {file = "awkward_cpp-10-cp311-cp311-win_amd64.whl", hash = "sha256:174926f7d87325946dae8f5a87527e94d73bf111fed20fa7f4d6daaba2d35e3b"},
+    {file = "awkward_cpp-10-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:24127e6227843aa7db1164d2f8c7e41de944f8e3bc3c246caa71750b05e28ecb"},
+    {file = "awkward_cpp-10-cp37-cp37m-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8b645c879be2c78a8a11ea8daba60129f03dc337800d355d76d7b0cdfe5d2bdd"},
+    {file = "awkward_cpp-10-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:331f898c03ad95b9e66a493f614c9545aaa7aafd116e347ea31ee2a26c2a9021"},
+    {file = "awkward_cpp-10-cp37-cp37m-musllinux_1_1_aarch64.whl", hash = "sha256:546cec69834d7ee7ea89c9372733872df7a400514d6f0726f7189de19021b82b"},
+    {file = "awkward_cpp-10-cp37-cp37m-musllinux_1_1_x86_64.whl", hash = "sha256:48faf726e719eb9b45280bed3b50229bb079343059cc6e1409f5e9a9d8c21767"},
+    {file = "awkward_cpp-10-cp37-cp37m-win32.whl", hash = "sha256:cf3a1a961b726fd384f1a969b0200337baca7c7cebe3e2aee89e1911e2df2473"},
+    {file = "awkward_cpp-10-cp37-cp37m-win_amd64.whl", hash = "sha256:aff6e753d3b72dd0bc8bb205106d06cda60fdc78812c94bd088ebae41a55ab5d"},
+    {file = "awkward_cpp-10-cp38-cp38-macosx_10_9_universal2.whl", hash = "sha256:d2192cd954d4a4e0e6bb19b8c89379acaa1cc38c4ff2a333d59bb7120fb1cadb"},
+    {file = "awkward_cpp-10-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:789024af236982b10653090aa8f24953c34bebafc79c03a0627234776d07d311"},
+    {file = "awkward_cpp-10-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ce62a26d96905a9a058e7fc9510fe2a0794f3e900bb5e15646beca46da870c03"},
+    {file = "awkward_cpp-10-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3501d68d2f60d4ec1d8fff56d204b4d9e15c83b907540a6e4f8cbb97cee6524c"},
+    {file = "awkward_cpp-10-cp38-cp38-musllinux_1_1_aarch64.whl", hash = "sha256:501e4ad4e30e96b195202c02ec4e321010a703d2a396d78b98f61a1e7280ab92"},
+    {file = "awkward_cpp-10-cp38-cp38-musllinux_1_1_x86_64.whl", hash = "sha256:a17f2fccd464ddb74c1f6fcd79c457364f0e829c2e67f359e8aea4f13d343caa"},
+    {file = "awkward_cpp-10-cp38-cp38-win32.whl", hash = "sha256:0f95490413576cc3b55bf04452df7ea2a8cc51fe23d15d74a843f134ecd447ac"},
+    {file = "awkward_cpp-10-cp38-cp38-win_amd64.whl", hash = "sha256:0879e7be0645e0c45327e56499ff921e03370d751be591ea0cd9d2db77ae5a2a"},
+    {file = "awkward_cpp-10-cp39-cp39-macosx_10_9_universal2.whl", hash = "sha256:d346fe65c4d839209c345dfaae67da4e1cc9ab3ae7ec671cf993e7c5410b5541"},
+    {file = "awkward_cpp-10-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:2154c75c065e8e41ec97a55d9eebcd8825c9f60f69ca5e9579a200d14b78610b"},
+    {file = "awkward_cpp-10-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:01792f511c3f316a878923513d4fede4f032046b0b61d616df022b257ccd2e57"},
+    {file = "awkward_cpp-10-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2aaeda18d6139ef1866954198967284f11ad251de9e0ce751a5e4941e3d03f0d"},
+    {file = "awkward_cpp-10-cp39-cp39-musllinux_1_1_aarch64.whl", hash = "sha256:7259e11aa1566ea3269291ec47ad7fb54fd154dfe358d58600fc90aaaffda5b2"},
+    {file = "awkward_cpp-10-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:b310e6364cf20d482ad8f2e498021420e36151a802a61c81a5693bb4c4dd6649"},
+    {file = "awkward_cpp-10-cp39-cp39-win32.whl", hash = "sha256:21fb5bbec5af1028d3a51f2edbcdbdb20866d82784ac07615685e7e1d23deb27"},
+    {file = "awkward_cpp-10-cp39-cp39-win_amd64.whl", hash = "sha256:d6e040a104a94715422e444747c1867605c965c6e242dd269b59de9217f3a50f"},
+    {file = "awkward_cpp-10-pp37-pypy37_pp73-macosx_10_9_x86_64.whl", hash = "sha256:c919af804bbae2ac493e1fe0872b89fd2db2dbcb50771f4cfd9f3cc624970749"},
+    {file = "awkward_cpp-10-pp37-pypy37_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cf495786c1cafc464365540116778bbcfed5f4312a88f28d9f1fa2b456c707c9"},
+    {file = "awkward_cpp-10-pp38-pypy38_pp73-macosx_10_9_x86_64.whl", hash = "sha256:5a5ecfe2782ba4c313456d4a63e84cf6b5a6ddaa5f63c23b0d0f05a94a9ddd9b"},
+    {file = "awkward_cpp-10-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:be6a44d66c136d8b888196c30a4c545dfbadba52e25d8240714c4b528d8b982b"},
+    {file = "awkward_cpp-10-pp39-pypy39_pp73-macosx_10_9_x86_64.whl", hash = "sha256:6d00aae810cdab12e5f652f194ae51b2a660d68265789c5256d4be2c25717c4e"},
+    {file = "awkward_cpp-10-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bce08eb2b23cb8c2952d2e16951d6eb8b702deeb49405fabaaa32dc9dbb9bbe7"},
+]
+
+[package.dependencies]
+numpy = ">=1.14.5"
+
+[[package]]
 name = "cachetools"
 version = "5.2.0"
 description = "Extensible memoizing collections and decorators"
@@ -833,6 +909,25 @@ zipp = ">=0.5"
 docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
 perf = ["ipython"]
 testing = ["flake8 (<5)", "flufl.flake8", "importlib-resources (>=1.3)", "packaging", "pyfakefs", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)", "pytest-perf (>=0.9.2)"]
+
+[[package]]
+name = "importlib-resources"
+version = "5.12.0"
+description = "Read resources from Python packages"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "importlib_resources-5.12.0-py3-none-any.whl", hash = "sha256:7b1deeebbf351c7578e09bf2f63fa2ce8b5ffec296e0d349139d43cca061a81a"},
+    {file = "importlib_resources-5.12.0.tar.gz", hash = "sha256:4be82589bf5c1d7999aedf2a45159d10cb3ca4f19b2271f8792bc8e6da7b22f6"},
+]
+
+[package.dependencies]
+zipp = {version = ">=3.1.0", markers = "python_version < \"3.10\""}
+
+[package.extras]
+docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
+testing = ["flake8 (<5)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)"]
 
 [[package]]
 name = "iniconfig"
@@ -1892,6 +1987,27 @@ files = [
 ]
 
 [[package]]
+name = "uproot"
+version = "5.0.4"
+description = "ROOT I/O in pure Python and NumPy."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "uproot-5.0.4-py3-none-any.whl", hash = "sha256:5a4a526fbec5d5bb3c439dcee0876bc689d42a36627a4a89105924afc3b3ec24"},
+    {file = "uproot-5.0.4.tar.gz", hash = "sha256:c4ea1af198e3292a4649e3fe789d11b038c1ed57c10f167fc3f52100300c2eea"},
+]
+
+[package.dependencies]
+awkward = ">=2.0.0"
+numpy = "*"
+packaging = "*"
+
+[package.extras]
+dev = ["awkward (>=2.0.0)", "awkward-pandas", "boost-histogram (>=0.13)", "dask-awkward (>=2022.12a3)", "dask[array]", "hist (>=1.2)", "pandas"]
+test = ["awkward (>=2.0.0)", "lz4", "pytest (>=6)", "pytest-rerunfailures", "pytest-timeout", "requests", "scikit-hep-testdata", "xxhash"]
+
+[[package]]
 name = "urllib3"
 version = "1.26.13"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -2263,4 +2379,4 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.11"
-content-hash = "a53c9dbb6228ef8161b05d6a405f080faceaf558df8ecbdb3b9c3a79b272a904"
+content-hash = "ea7a7443e8950d2f5c5847ead9dd4c950814c3bc072d9fac211bbab5ba2985eb"

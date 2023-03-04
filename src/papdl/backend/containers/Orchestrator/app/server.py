@@ -14,13 +14,11 @@ import asyncio
 import traceback
 from asyncio import Future
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '3'
-from proto.iss_message_pb2 import IssMessage
-from proto.dtype_pb2 import dtype as proto_dtype
-from proto.ndarray_pb2 import ndarray as proto_ndarray
 import uuid
 import requests
 from sanic.log import logger
 import aiohttp
+import uproot
 
 from websockets.legacy.client import Connect
 
@@ -66,41 +64,41 @@ app.ctx.request_response_map:Dict[str,Future] = {}
 @app.websocket("/predict")
 async def record_response(request:Request,ws:Websocket):
     async for data in ws:
+        requestId:str
         try:
-            iss_message_input = IssMessage()
-            iss_message_input.ParseFromString(data)
+            buff = io.BytesIO()
+            buff.write(data)
+            buff.seek(0)
+            uproot_buff = uproot.open(buff)
+            requestId = str(uproot_buff["requestId"])
+            output = uproot_buff["data"]["array"].array(library="np")
             async with app.ctx.rrm_lock:
-                app.ctx.request_response_map[iss_message_input.requestId].set_result(iss_message_input.data)
+                app.ctx.request_response_map[requestId].set_result(output)
         except Exception as e:
             logger.error(traceback.format_exc())
             async with app.ctx.rrm_lock:
-                app.ctx.request_response_map[iss_message_input.requestId].set_exception(e)
+                app.ctx.request_response_map[requestId].set_exception(e)
         
 @app.get("/input")
 async def make_prediction(request:Request):
-    global forward_connection
     try:
-        # read_buff = io.BytesIO() 
-        # read_buff.write(request.body)
-        # read_buff.seek(0)
-        # data = np.load(read_buff,allow_pickle=True)
         input_shape = (100,)
         batch_size = 1000
         dimensions = (batch_size,) + input_shape
         data = np.random.random_sample(dimensions)
         requestId:str = str(uuid.uuid4())
 
-        iss_message_output = IssMessage()
-        
-
-        iss_message_output.requestId = requestId
-        iss_message_output.data = data
+        buff = io.BytesIO()
+        uproot_buff = uproot.recreate(buff)
+        uproot_buff["requestId"] = requestId
+        uproot_buff["data"] = {"array":data}
+        buff.seek(0)
 
         loop = asyncio.get_running_loop()
         response_future = loop.create_future()
         async with app.ctx.rrm_lock:
             app.ctx.request_response_map[requestId] = response_future
-        forward_connection.send(iss_message_output.SerializeToString())
+        await app.ctx.forward_connection.send(buff)
         await response_future
         
         response_np = response_future.result()
@@ -108,7 +106,7 @@ async def make_prediction(request:Request):
         np.save(write_buff,response_np,allow_pickle=True)
         write_buff.seek(0)
         
-        return response.raw(write_buff,status=HTTPStatus.OK)
+        return response.raw(write_buff.read(),status=HTTPStatus.OK)
         
         
     except Exception as e:
