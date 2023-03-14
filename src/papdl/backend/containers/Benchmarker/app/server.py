@@ -4,96 +4,93 @@ from getpass import getuser
 from glob import glob
 from keras.models import Model, load_model
 from typing import Dict, TypedDict, List
-from json import dumps
+import json
 from io import BytesIO
 from os import stat, environ, path
 import iperf3
 from pythonping import ping
 from getpass import getuser
-
-
-def load_all_models() -> Dict[str, Model]:
-    user_folder = glob(f"/home/*/")[0]
-    model_paths = glob(f"{user_folder}models/*/")
-
-    models: Dict[str, Model] = {}
-    for model_path in model_paths:
-        model = load_model(model_path)
-        model_name = model_path.split("/")[-2]
-        print(f"Loaded model: {model_path}")
-        models[model_name] = model
-    return models
-
+import tensorflow as tf
+import psutil
+import gc
+from multiprocessing import Pool
+import contextlib
+import uuid
 
 class Config(TypedDict):
     model_test_number_of_repeats: int
     model_test_batch_size: int
     bandwidth_test_duration_sec: int
     latency_test_count: int
-
+    free_memory_multiplier:float
 
 config: Config
-
-
-def load_benchmark_configs():
+def load_benchmark_configs()->Config:
     # TODO: read from environment variables
     global config
     config = Config(
         model_test_batch_size=1,
-        model_test_number_of_repeats=1000,
+        model_test_number_of_repeats=100,
         bandwidth_test_duration_sec=1,
-        latency_test_count=1000)
+        latency_test_count=1000,
+        free_memory_multiplier = 0.01)
 
+
+def get_available_memory():
+    return psutil.virtual_memory().free
+
+# https://gist.github.com/jamesmishra/34bac09176bc07b1f0c33886e4b19dc7
+def keras_model_memory_usage_in_bytes(model, *, batch_size: int):
+    default_dtype = tf.keras.backend.floatx()
+    shapes_mem_count = 0
+    internal_model_mem_count = 0
+    for layer in model.layers:
+        if isinstance(layer, tf.keras.Model):
+            internal_model_mem_count += keras_model_memory_usage_in_bytes(
+                layer, batch_size=batch_size
+            )
+        single_layer_mem = tf.as_dtype(layer.dtype or default_dtype).size
+        out_shape = layer.output_shape
+        if isinstance(out_shape, list):
+            out_shape = out_shape[0]
+        for s in out_shape:
+            if s is None:
+                continue
+            single_layer_mem *= s
+        shapes_mem_count += single_layer_mem
+
+    trainable_count = sum(
+        [tf.keras.backend.count_params(p) for p in model.trainable_weights]
+    )
+    non_trainable_count = sum(
+        [tf.keras.backend.count_params(p) for p in model.non_trainable_weights]
+    )
+
+    total_memory = (
+        batch_size * shapes_mem_count
+        + internal_model_mem_count
+        + trainable_count
+        + non_trainable_count
+    )
+    return total_memory
 
 def load_network_benchmark_ips() -> List[str]:
-    return environ.get("PAPDL_WORKERS").split(" ")
+    target_networks = environ.get("PAPDL_WORKERS").split(" ")
+    print(target_networks,flush=True)
+    return target_networks
+
+def get_available_memory():
+    return psutil.virtual_memory().free
 
 
-def benchmark_time(model: Model) -> float:
-    global config
-    dimensions = (config["model_test_batch_size"],) + model.input_shape[1:]
-    sample_input = np.random.random_sample(dimensions)
+user_folder = glob(f"/home/*/")[0]
+model_paths = glob(f"{user_folder}models/*/")
+papdl_workers = load_network_benchmark_ips()
 
-    start = time()
-    [model(sample_input)
-     for i in range(config["model_test_number_of_repeats"])]
-    end = time()
-    return (end - start) / config["model_test_number_of_repeats"]
-
-
-def benchmark_size(model: Model) -> float:
-    global config
-    dimensions = (config["model_test_batch_size"],) + model.input_shape[1:]
-    sample_input = np.random.random_sample(dimensions)
-
-    output: np.array = model(sample_input, training=False)
-
-    # buffer = BytesIO()
-    # np.savez(buffer,x=output)
-    np.save("fsize", output)
-    size = stat("fsize.npy").st_size
-    return size
-
-
-def benchmark_model() -> Dict:
-    print(f"Running as: {getuser()} ")
-    global config
-    models = load_all_models()
-    load_benchmark_configs()
-    results = {}
-    for i, (name, model) in enumerate(models.items()):
-        time = benchmark_time(model)
-        size = benchmark_size(model)
-        results[name] = {"benchmark_time": time, "benchmark_size": size}
-
-    return results
-
-
-def benchmark_network() -> Dict:
-    # return load_network_benchmark_ips()
+def benchmark_network(papdl_workers:List[str]) -> Dict:
     global config
     result = {}
-    for ip in load_network_benchmark_ips():
+    for ip in papdl_workers:
 
         # BANDWIDTH TEST
         client = iperf3.Client()
@@ -114,14 +111,89 @@ def benchmark_network() -> Dict:
                 "rtt_max_ms": r_ping.rtt_max_ms
             }
         }
-        print(result[ip])
+        print(result[ip],flush=True)
         del client
     return result
 
 
-benchmark_result = {
-    "model_performance": benchmark_model(),
-    "network_performance": benchmark_network()
-}
+def single_model_benchmark(args:Dict):
+    mp = args["mp"]
+    fmm = args["fmm"]
+    mtbs = args["mtbs"]
+    
 
-print("[BENCHMARK]" + dumps(benchmark_result))
+    free_memory = get_available_memory()
+    model:tf.keras.Model = load_model(mp)
+    model_memory_usage = keras_model_memory_usage_in_bytes(model=model,batch_size=config["model_test_batch_size"])
+    model_name = model.name
+    dimensions = (mtbs,) + model.input_shape[1:]
+    print(f"Loaded model : {model_name} from path: {mp} with input_dims: {dimensions}",flush=True)
+    
+    if(model_memory_usage > free_memory * fmm):
+        print(f"Skipping benchmarking as memory threshold {model_memory_usage} has been met {free_memory}.",flush=True)
+        result = {}
+        result["benchmark_size"] = float("inf")
+        result["benchmark_time"] = float("inf")
+        result["benchmark_memory_usage"] = model_memory_usage
+        result["model_name"] = model_name
+        del model
+        tf.compat.v1.reset_default_graph()
+        gc.collect()
+        return result
+
+    print(f"Running benchmarking as memory threshold {free_memory} has not been met for model {model_memory_usage}")
+    sample_input = np.random.random_sample(dimensions)
+    start = time()
+    for i in range(mtbs):
+        tmp_out = model(sample_input,training=False)
+        del tmp_out
+        gc.collect()
+    end = time()
+    
+    output:np.array = model(sample_input,training = False)
+    file_name = f"fsize_{str(uuid.uuid4())}"
+    np.save(file_name,"output")
+    
+    size = stat(f"{file_name}.npy").st_size
+    result = {}
+    result["benchmark_size"] = size
+    result["benchmark_time"] = (end - start) / mtbs
+    result["benchmark_memory_usage"] = model_memory_usage
+    result["model_name"] = model_name
+
+    del model
+    del output
+    del sample_input
+    tf.compat.v1.reset_default_graph()
+    return result
+    
+
+
+def benchmark_models(model_paths=model_paths):
+    global config
+    result = {}
+    with contextlib.closing(Pool(1)) as po:
+        pool_args = []
+        for mp in model_paths:
+            pool_args.append({"mp":mp, "fmm":config["free_memory_multiplier"], "mtbs": config["model_test_batch_size"]})
+
+        pool_result = po.map_async(single_model_benchmark, pool_args)
+        completed_pool_results = pool_result.get()
+        for r in completed_pool_results:
+            result[r["model_name"]] = {}
+            result[r["model_name"]]["benchmark_size"] = r["benchmark_size"]
+            result[r["model_name"]]["benchmark_time"] = r["benchmark_time"]
+            result[r["model_name"]]["benchmark_memory_usage"] = r["benchmark_memory_usage"]
+    return result
+        
+
+load_benchmark_configs()
+print(f"Loaded config: {config}",flush=True)
+benchmark_result = {"free_memory": get_available_memory()}
+benchmark_result["network_performance"] = benchmark_network(papdl_workers=papdl_workers)
+benchmark_result["model_performance"] = benchmark_models(model_paths=model_paths)
+
+def convert_np(o):
+    if isinstance(o, np.int64): return int(o)  
+    raise TypeError
+print("[BENCHMARK]" + json.dumps(benchmark_result,default=convert_np),flush=True)

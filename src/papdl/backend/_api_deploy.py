@@ -2,7 +2,7 @@
 from .api_common import PapdlAPIContext, prepare_build_context, copy_app, AppType,get_docker_logs
 from ..configure.configure import Configuration, SliceBlock
 from os import path,mkdir
-from typing import TypedDict,List,Union,Dict
+from typing import TypedDict,List,Union,Dict,Tuple
 from .common import PapdlException
 
 from docker.models.services import Service
@@ -48,7 +48,6 @@ class PapdlService:
         self.context.logger.info(
             f"Building {self.image_name} with context {self.build_context}"
         )
-        self.context.loadingBar.start()
         image, build_logs = self.context.client.images.build(
             path=self.build_context,
             tag=self.image_name,
@@ -61,17 +60,13 @@ class PapdlService:
         )
         get_docker_logs(self.context,build_logs)
         self.context.cleanup_target["images"].append(image)
-        self.context.loadingBar.stop()
         self.context.logger.info(f"Pushing image {self.image_name} to registry for distribution")
-        self.context.loadingBar.start()
         self.context.client.images.push(self.image_name)
-        self.context.loadingBar.stop()
         self.image = image
         
     def spawn(self,forward_service:"PapdlService",extra_args={})->"PapdlService":
         image_name = self.image.tags[0]
         self.context.logger.info(f"Spawning service for image {image_name}")
-        self.context.loadingBar.start()
         nac = NetworkAttachmentConfig(self.context.network.name)
         es = EndpointSpec(mode="vip")
         
@@ -93,7 +88,6 @@ class PapdlService:
         }
         self.service = self.context.client.services.create(**spawning_configuration)
         self.context.cleanup_target["services"].append(self.service)
-        self.context.loadingBar.stop()
         return self
 
 
@@ -126,11 +120,12 @@ class PapdlOrchestratorService(PapdlService):
         source_device = configuration["source_device"].name
         super().__init__(context=context,build_context=build_context,target_node=source_device,apptype=AppType.ORCHESTRATOR,name=name)
         
-    def spawn(self,forward_service:"PapdlService",slices:List[PapdlSliceService])->"PapdlOrchestratorService":
+    def spawn(self,forward_service:"PapdlService",slices:List[PapdlSliceService],input_shape=Tuple[int])->"PapdlOrchestratorService":
         es = EndpointSpec(mode="vip", ports={8765:8765})
         env = [
             f"FORWARD={forward_service.service_name}",
-            f"SLICES={','.join([s.service_name for s in slices])}"
+            f"SLICES={','.join([s.service_name for s in slices])}",
+            f"INPUTDIMS={','.join([str(s) for s in input_shape])}"
         ]
         return super().spawn(forward_service=forward_service,extra_args={"endpoint_spec":es,"env":env})
     

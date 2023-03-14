@@ -5,7 +5,7 @@ from docker.models.services import Service
 from docker.models.secrets import Secret
 from docker.models.networks import Network
 from docker.models.nodes import Node
-from .common import BenchmarkPreferences, LoadingBar, AppType
+from .common import BenchmarkPreferences, AppType
 from random_word import RandomWords
 from getpass import getuser
 from os import getuid, path
@@ -44,14 +44,14 @@ class PapdlAPIContext:
 
         r = RandomWords()
         if project_name is None:
-            project_name = r.get_random_word()
+            # project_name = r.get_random_word()
+            project_name = "debug"
 
         self.logger = preference["logger"]
         self.dircontext = {}
         self.local_user = getuser()
         self.local_uid = getuid()
         self.project_name = project_name
-        self.loadingBar = LoadingBar()
         self.dircontext["api_module_path"] = path.dirname(
             path.abspath(__file__))
         self.cleanup_target = CleanupTarget(

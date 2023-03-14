@@ -37,7 +37,6 @@ class PapdlAPI:
             self, service_spawner: Callable, timeout_on: List[str], service_spawner_args={}) -> Service:
         service = service_spawner(**service_spawner_args)
         self.context.logger.info(f"Spawing service {service.name} ...")
-        self.context.loadingBar.start()
         start_time = time()
         while True:
             if time() - \
@@ -55,7 +54,6 @@ class PapdlAPI:
                     raise ContainerBehaviourException(
                         f"Service {service.name} was/has {service_status}", service=service)
                 sleep(1)
-        self.context.loadingBar.stop()
         return service
 
     def deploy_benchmarkers(self, slices: List[Slice]) -> DeploymentStatus:
@@ -74,6 +72,7 @@ class PapdlAPI:
         image = self.benchmark_api.build_benchmark_image(slices)
         node: Node
         deployed_services: Dict[Node, Service] = {}
+        self.context.logger.info(f"Running benchmarking on nodes: {self.context.devices}")
         for node in self.context.devices:
             deployed_services[node] = self._deploy_service_with_timeout(
                 self.benchmark_api.spawn_benchmarker_on_node,

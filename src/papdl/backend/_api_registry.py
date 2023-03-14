@@ -106,7 +106,6 @@ class PapdlRegistryAPI:
             return registry_services[0]
 
         self.context.logger.info(f"Spawning Registry service...")
-        self.context.loadingBar.start()
         self.context.client.images.pull("registry", tag="latest")
         crt, key = self.secret_gen()
         registry_volume_path = path.join(
@@ -139,5 +138,4 @@ class PapdlRegistryAPI:
             },
             restart_policy=rp
         )
-        self.context.loadingBar.stop()
         return service

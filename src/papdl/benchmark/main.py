@@ -1,9 +1,9 @@
 import click
-from ..slice.slice import slice_decode
 from ..backend.common import prepare_logger,BenchmarkPreferences
-from ..benchmark.benchmark import benchmark_slices,SplitStrategy,encode_benchmark_result,decode_benchmark_result,BenchmarkResult
+from ..benchmark.benchmark import benchmark_slices,SplitStrategy,BenchmarkResult
 from logging import DEBUG
 import traceback
+import dill as pickle
 
 @click.command()
 @click.argument("sliced_model_path")
@@ -35,10 +35,10 @@ def benchmark(
     
     
     if service_idle_detection is None:
-        service_idle_detection = 600
+        service_idle_detection = 6000
     
     if startup_timeout is None:
-        startup_timeout = 600
+        startup_timeout = 6000
         
     pref = BenchmarkPreferences(
         service_idle_detection=service_idle_detection,
@@ -50,17 +50,17 @@ def benchmark(
     try:
         sliced_models = None
         
-        with open(sliced_model_path,"r") as f:
-            json_str = f.read()
-            sliced_models = slice_decode(json_str)
+        with open(sliced_model_path,"rb") as f:
+            sliced_models = pickle.load(f)
 
         benchmark_result:BenchmarkResult = benchmark_slices(sliced_models,arg_preferences=pref)
         
         if(output is None):
-            output = "benchmark.json"
+            output = "benchmark.pickle"
         
-        with open(output,"w") as f:
-            f.write(encode_benchmark_result(benchmark_result))
+        with open(output, "wb") as f:
+            pickle.dump(benchmark_result,f,protocol=pickle.HIGHEST_PROTOCOL)
+        logger.info(f"Saving benchmark results as '{output}'")
 
     except Exception:
         logger.error(traceback.format_exc())

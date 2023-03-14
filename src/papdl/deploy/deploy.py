@@ -15,7 +15,7 @@ def deploy_configuration(configuration:Configuration):
         split_strategy=SplitStrategy.from_str("scission"),
         logger=prepare_logger(DEBUG)
     )
-
+    input_shape = configuration["input_shape"]
     pac = PapdlAPIContext(preference=bp)
 
     slice_services:List[PapdlSliceService] = [PapdlSliceService(pac,sb) for sb in configuration["blocks"]]
@@ -25,7 +25,7 @@ def deploy_configuration(configuration:Configuration):
     print(slice_services)
     print(orchestrator_service)
     
-    orchestrator_service.spawn(forward_service=slice_services[0],slices=slice_services)
+    orchestrator_service.spawn(forward_service=slice_services[0],slices=slice_services,input_shape=input_shape)
     for i in range(len(slice_services)-1):
         curr:PapdlSliceService = slice_services[i]
         forward:PapdlSliceService = slice_services[i+1]

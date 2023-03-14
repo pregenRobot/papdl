@@ -1,14 +1,12 @@
-from keras.layers import Input
-from keras.models import Model
 from collections.abc import Iterable
 from enum import Enum
 from typing import List
-from jsonpickle import encode,decode
+import keras
 
 
 class Slice:
     def __init__(self):
-        self.model: Model = None
+        self.model: keras.Model = None
         self.input_layer = 0
         self.output_layer = 0
         self.second_prediction = 0
@@ -54,16 +52,16 @@ def get_model(input_layer: int, output_layer: int):
     if input_layer == 0:
         new_input = selected_model.input
 
-        return Model(new_input, selected_model.layers[output_layer].output)
+        return keras.models.Model(new_input, selected_model.layers[output_layer].output)
     else:
-        new_input = Input(batch_shape=selected_model.get_layer(
+        new_input = keras.Input(batch_shape=selected_model.get_layer(
             starting_layer_name).get_input_shape_at(0))
 
     new_output = get_output_of_layer(
         selected_model.layers[output_layer],
         new_input,
         starting_layer_name)
-    model = Model(new_input, new_output)
+    model = keras.models.Model(new_input, new_output)
 
     return model
 
@@ -99,7 +97,7 @@ def create_valid_splits():
 selected_model = None
 
 
-def slice_model(model: Model) -> List[Slice]:
+def slice_model(model: keras.models.Model) -> List[Slice]:
     global selected_model
     global layer_outputs
     layer_outputs = {}
@@ -126,11 +124,3 @@ def slice_model(model: Model) -> List[Slice]:
         sliced_network.append(result)
 
     return sliced_network
-
-
-def slice_encode(layers=List[Slice]):
-    return encode(layers)
-
-def slice_decode(json_str=str)->List[Slice]:
-    return decode(json_str)
-    

@@ -28,7 +28,6 @@ class PapdlIperfAPI:
 
         self.context.logger.info(
             f"Spawning iperf3 network inspection service...")
-        self.context.loadingBar.start()
         self.context.client.images.pull("networkstatic/iperf3")
 
         # es = EndpointSpec(ports={5201:5201})
@@ -50,6 +49,5 @@ class PapdlIperfAPI:
             }
         )
         self.context.cleanup_target["services"].append(service)
-        self.context.loadingBar.stop()
         self.service = service
         return service

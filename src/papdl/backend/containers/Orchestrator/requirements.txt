@@ -6,3 +6,4 @@ watchdog[watchmedo]
 sanic
 aiohttp
 uproot
+asyncstdlib

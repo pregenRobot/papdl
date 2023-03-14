@@ -1,6 +1,5 @@
 from enum import Enum
 from typing import TypedDict, Dict, List, Union, NamedTuple, Tuple
-from keras.models import Model
 import tqdm
 import logging
 from colorama import Fore, Style
@@ -11,48 +10,9 @@ from docker.models.images import Image
 from docker.models.networks import Network
 from docker.models.containers import Container
 from docker.models.nodes import Node
+import coloredlogs
 
 
-class LoadingBar():
-    bar = [
-        " [=          ]",
-        " [ =         ]",
-        " [  =        ]",
-        " [   =       ]",
-        " [    =      ]",
-        " [     =     ]",
-        " [      =    ]",
-        " [       =   ]",
-        " [        =  ]",
-        " [         = ]",
-        " [          =]",
-        " [         = ]",
-        " [        =  ]",
-        " [       =   ]",
-        " [      =    ]",
-        " [     =     ]",
-        " [    =      ]",
-        " [   =       ]",
-        " [  =        ]",
-        " [ =         ]",
-        " [=          ]",
-    ]
-    i = 0
-
-    def loop(self):
-        while self.animate:
-            print(self.bar[self.i % len(self.bar)], end="\r")
-            self.i += 1
-            sleep(1)
-            self.i += 1
-
-    def start(self):
-        self.animate = True
-        self.t = Thread(target=self.loop)
-        self.t.start()
-
-    def stop(self):
-        self.animate = False
 
 
 class ContainerBehaviourException(Exception):
@@ -115,13 +75,17 @@ class ColourFormatter(logging.Formatter):
 
 
 def prepare_logger(level=logging.DEBUG) -> logging.Logger:
-    logger = logging.getLogger(__name__)
-    logger.setLevel(level)
+    # logger = logging.getLogger(__name__)
+    # logger.setLevel(level)
 
-    ch = logging.StreamHandler()
-    ch.setLevel(level=level)
-    ch.setFormatter(ColourFormatter())
-    logger.addHandler(ch)
+    # ch = logging.StreamHandler()
+    # ch.setLevel(level=level)
+    # ch.setFormatter(ColourFormatter())
+    # logger.addHandler(ch)
+    # logger.propagate = False
+    logger = logging.getLogger(__name__)
+    logger.propagate = False
+    coloredlogs.install(level=level,logger=logger)
     return logger
 
 

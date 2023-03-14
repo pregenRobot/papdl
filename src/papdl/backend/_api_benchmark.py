@@ -51,7 +51,6 @@ class PapdlBenchmarkAPI:
 
         self.context.logger.info(
             f"Building benchmark with image {name} and context {build_context}")
-        self.context.loadingBar.start()
         image, build_logs = self.context.client.images.build(
             path=build_context,
             tag=name,
@@ -64,12 +63,9 @@ class PapdlBenchmarkAPI:
         )
         get_docker_logs(self.context, build_logs)
         self.context.cleanup_target["images"].append(image)
-        self.context.loadingBar.stop()
 
         self.context.logger.info(f"Pushing image {name} to registry for distribution...")
-        self.context.loadingBar.start()
         self.context.client.images.push(name)
-        self.context.loadingBar.stop()
         self.context.benchmark_image = image
         return image
 
@@ -81,7 +77,6 @@ class PapdlBenchmarkAPI:
     ) -> Service:
         image_name = image.tags[0]
         self.context.logger.info(f"Spawning service for image {image_name}")
-        self.context.loadingBar.start()
         # node_ips = list(map(lambda n: n.attrs["Status"]["Addr"],self.context.devices))
         nac = NetworkAttachmentConfig(self.context.network.name)
 
@@ -102,6 +97,5 @@ class PapdlBenchmarkAPI:
             networks=[nac]
         )
         self.context.cleanup_target["services"].append(service)
-        self.context.loadingBar.stop()
         self.services.append(service)
         return service

@@ -1,6 +1,7 @@
 
 import os
 import json
+import sys
 
 from websockets.client import connect as ws_connect
 from websockets.server import serve as ws_serve
@@ -19,6 +20,8 @@ import requests
 from sanic.log import logger
 import aiohttp
 import uproot
+from time import time_ns
+import asyncstdlib as asynclib
 
 from websockets.legacy.client import Connect
 
@@ -52,12 +55,20 @@ def get_all_slices()->List[str]:
     logger.info(f"Loaded slice services: {service_list}")
     return service_list
 
+def get_input_dims()->Tuple[int]:
+    input_dims_list = (int(s) for s in os.environ.get("INPUTDIMS").split(","))
+    return tuple(input_dims_list)
+    
+
 app = Sanic("OrchestratorServer")
 app.ctx.forward_url:str = get_next_url()
 app.ctx.all_slice_services:List[str] = get_all_slices()
 app.ctx.forward_connection:Union[Connect,None] = None
 app.ctx.rrm_lock = asyncio.Lock()
 app.ctx.request_response_map:Dict[str,Future] = {}
+app.ctx.input_dims = get_input_dims()
+app.config.WEBSOCKET_MAX_SIZE = sys.maxsize
+app.config.KEEP_ALIVE_TIMEOUT = 600
 
 # request_response_map:Dict[str,Future] = {}
 # rrm_lock = asyncio.Lock()
@@ -78,45 +89,92 @@ async def record_response(request:Request,ws:Websocket):
             logger.error(traceback.format_exc())
             async with app.ctx.rrm_lock:
                 app.ctx.request_response_map[requestId].set_exception(e)
-        
-@app.get("/input")
+
+@app.post("/input")
 async def make_prediction(request:Request):
     try:
-        input_shape = (100,)
-        batch_size = 1000
-        dimensions = (batch_size,) + input_shape
-        data = np.random.random_sample(dimensions)
-        requestId:str = str(uuid.uuid4())
+        request_buff = io.BytesIO()
+        request_buff.write(request.body)
+        request_buff.seek(0)
+        array:np.ndarray = np.load(request_buff)
+        expected_input_dims = app.ctx.input_dims
 
-        buff = io.BytesIO()
-        uproot_buff = uproot.recreate(buff)
-        uproot_buff["requestId"] = requestId
-        uproot_buff["data"] = {"array":data}
-        buff.seek(0)
-
+        if len(expected_input_dims) + 1 != len(array.shape) or array.shape[1:] != expected_input_dims:
+            raise ValueError()
+        
+        send_buff = io.BytesIO()
+        uproot_buff = uproot.recreate(send_buff)
+        request_id = str(uuid.uuid4())
+        uproot_buff["requestId"] = request_id
+        uproot_buff["data"] = {"array":array}
+        send_buff.seek(0)
         loop = asyncio.get_running_loop()
         response_future = loop.create_future()
         async with app.ctx.rrm_lock:
-            app.ctx.request_response_map[requestId] = response_future
-        await app.ctx.forward_connection.send(buff)
+            app.ctx.request_response_map[request_id] = response_future
+        await app.ctx.forward_connection.send(uproot_buff)
         await response_future
         
-        response_np = response_future.result()
-        write_buff = io.BytesIO()
-        np.save(write_buff,response_np,allow_pickle=True)
-        write_buff.seek(0)
-        
-        return response.raw(write_buff.read(),status=HTTPStatus.OK)
-        
-        
+        response_buff = io.BytesIO()
+        np.save(response_buff,response_future.result())
+        response_buff.seek(0)
+        return response.raw(body=response_buff,status=HTTPStatus.OK)
+    except ValueError as e:
+        return response.raw(body="Input dimensions does not match the model",status=HTTPStatus.BAD_REQUEST)
     except Exception as e:
-        logger.error(traceback.format_exc())
-        return response.text("Unable to send input to next service",status=HTTPStatus.BAD_REQUEST)
+        return response.json(body=e,status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
+@app.post("/benchmark")
+async def benchmark_performance(request:Request):
+    try:
+        input_shape = app.ctx.input_dims
+        batch_size = int(request.json["batch_size"])
+        iterations = int(request.json["iterations"])
+
+        dimensions = (batch_size,) + input_shape
+        
+        loop = asyncio.get_running_loop()
+        benchmark_results = [(
+            str(uuid.uuid4()), 
+            np.random.random_sample(dimensions),
+            loop.create_future()
+            ) for i in range(iterations)]
+
+        req_id:str
+        sample:np.ndarray
+        duration_fut:asyncio.Future
+        async for i,(req_id, sample, duration_fut) in asynclib.enumerate(benchmark_results):
+            buff = io.BytesIO()
+            uproot_buff = uproot.recreate(buff)
+            uproot_buff["requestId"] = req_id
+            uproot_buff["data"] = {"array":sample}
+            buff.seek(0)
+            _loop = asyncio.get_running_loop()
+            response_future = _loop.create_future()
+            async with app.ctx.rrm_lock:
+                app.ctx.request_response_map[req_id] = response_future
+
+            begin = time_ns()
+            await app.ctx.forward_connection.send(buff)
+            await response_future
+            end = time_ns()
+            duration_fut.set_result(end - begin)
+        
+        durations_completed = []
+        for br in benchmark_results:
+            await br[2]
+            durations_completed.append(br[2].result())
+
+        return response.json(body=durations_completed,status=HTTPStatus.OK)
+    except KeyError as e:
+        return response.text("Bad request. Missing batch_size or iterations arguments",status=HTTPStatus.BAD_REQUEST)
+    except Exception as e:
+        return response.text(body=traceback.format_exc(),status=HTTPStatus.INTERNAL_SERVER_ERROR)
+    
 @app.get("/connect")
 async def connect_to_forward(request:Request):
     try:
-        app.ctx.forward_connection:Connect = await ws_connect(f"{app.ctx.forward_url}/predict")
+        app.ctx.forward_connection:Connect = await ws_connect(f"{app.ctx.forward_url}/predict", max_size=sys.maxsize)
         logger.info(f"Successfly connected to forward_url: {app.ctx.forward_url}")
         return response.text("Successfully connected to  forward url",status=HTTPStatus.OK)
     except:

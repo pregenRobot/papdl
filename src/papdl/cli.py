@@ -7,6 +7,8 @@ from .deploy import main as deployer
 import os
 
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
 @click.group()
 def main():
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'

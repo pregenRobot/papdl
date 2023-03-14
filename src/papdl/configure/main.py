@@ -1,8 +1,10 @@
 import click
 from .configure import Configuration,SearchConstraints,Configurer
 from ..backend.common import prepare_logger
-from ..benchmark.benchmark import decode_benchmark_result,BenchmarkResult
+from ..benchmark.benchmark import BenchmarkResult
 from logging import DEBUG
+import dill as pickle
+import traceback
 
 @click.command()
 @click.argument("benchmark_result_path")
@@ -17,27 +19,30 @@ def configure(
     output:str,
     search_constraints:str
 ):
-    logger = prepare_logger(DEBUG)
-    configurer = Configurer(logger=logger)
-    
-    benchmark_result:BenchmarkResult = None
-    with open(benchmark_result_path,"r") as f:
-        benchmark_result = decode_benchmark_result(f.read())
-    
-    sc = SearchConstraints(layer_must_be_in_device={},layer_must_not_be_in_device={})
-    
-    configuration:Configuration =  configurer.parse_from_benchmark(
-        benchmark_result=benchmark_result["result"],source_device=source_device,
-        input_size=int(input_size), 
-        search_constraints=sc,
-        model_list=benchmark_result["slice_list"])
-    
-    if output is None:
-        output = "configuration.json"
-    
-    with open(output,"w") as f:
-        f.write(Configurer.encode_configuration(configuration))
+    try:
+        logger = prepare_logger(DEBUG)
+        configurer = Configurer(logger=logger)
         
+        benchmark_result:BenchmarkResult = None
+        with open(benchmark_result_path,"rb") as f:
+            benchmark_result = pickle.load(f)
+        
+        sc = SearchConstraints(layer_must_be_in_device={},layer_must_not_be_in_device={})
+        
+        configuration:Configuration =  configurer.parse_from_benchmark(
+            benchmark_result=benchmark_result["result"],
+            source_device=source_device,
+            input_size=int(input_size), 
+            search_constraints=sc,
+            model_list=benchmark_result["slice_list"])
+    
+        if output is None:
+            output = "configuration.pickle"
+        with open(output, "wb") as f:
+            pickle.dump(configuration,f,protocol=pickle.HIGHEST_PROTOCOL)
+        logger.info(f"Saving sliced model list as '{output}'")
+    except Exception as e:
+        logger.error(traceback.format_exc())
     
     
     

@@ -3,58 +3,29 @@ from enum import Enum
 from typing import List, Dict, TypedDict,Tuple
 from ..slice.slice import Slice
 from ..backend.api import PapdlAPI, DeploymentStatus
-from ..backend.common import ContainerBehaviourException, BenchmarkPreferences, SplitStrategy, LoadingBar
+from ..backend.common import ContainerBehaviourException, BenchmarkPreferences, SplitStrategy
 from ..backend.api_common import PapdlAPIContext
 from docker.models.nodes import Node
-from docker.models.images import Image
 from docker.models.services import Service
 from docker.errors import DockerException, APIError
-from ..backend.common import BenchmarkSetup, NodeBenchmarkMetadata, NodeBenchmark, PapdlTest
-from docker.types import RestartPolicy
-from time import sleep, time
-from json import loads
 from copy import deepcopy
-from ..configure.configure import Configuration, Configurer
-from jsonpickle import encode,decode
 
 preferences: BenchmarkPreferences
-loadingBar: LoadingBar
 
 
 class BenchmarkResult(TypedDict):
     arg_preferences:BenchmarkPreferences
-    papdl_api:PapdlAPI
+    # papdl_api:PapdlAPI
     result:Dict
     slice_list:List[Slice]
-    
-
-def encode_benchmark_result(benchmark_result:BenchmarkResult)->str:
-    return encode(benchmark_result)
-
-def decode_benchmark_result(json_str:str)->BenchmarkResult:
-    return decode(json_str)
 
 def benchmark_slices(slice_list: List[Slice],arg_preferences: BenchmarkPreferences) -> BenchmarkResult:
     global preferences
-    global loadingBar
-    loadingBar = LoadingBar()
     preferences = arg_preferences
-    api,benchmark_results = scission_strategy(slice_list)
-    ## configurer = Configurer(logger=arg_preferences["logger"])
+    benchmark_results = scission_strategy(slice_list)
 
-    return BenchmarkResult(arg_preferences=arg_preferences,papdl_api=api,result=benchmark_results,slice_list=[sl.model for sl in slice_list])
-    ## config = configurer.parse_from_benchmark(
-    ##     benchmark_result=benchmark_results,
-    ##     source_device="n7fo72rj7bwdbajkyxypa0ev6",
-    ##     input_size=100,
-    ##     search_constraints=arg_preferences["search_constraints"]
-    ## )
-    ## with open("temp.json", "w+") as f:
-    ##     f.write(Configurer.dump_configuration(config))
+    return BenchmarkResult(arg_preferences=arg_preferences,result=benchmark_results,slice_list=[sl.model for sl in slice_list])
 
-    ## with open("temp.json", "r") as f:
-    ##     c = Configurer.parse_from_configurer_cache(f.read())
-    ##     print([c.device.name for c in c["blocks"]])
 
 def translate_statistics(ds: DeploymentStatus, statistics: Dict) -> Dict:
     ip_to_node_mapping = {v: k for k, v in ds.node_ip_mapping.items()}
@@ -62,7 +33,9 @@ def translate_statistics(ds: DeploymentStatus, statistics: Dict) -> Dict:
     for device, device_statistics in statistics.items():
         new_statistics[device] = {
             "model_performance": None,
-            "network_performance": {}}
+            "network_performance": {},
+            "free_memory": deepcopy(device_statistics)["free_memory"]
+            }
         new_statistics[device]["model_performance"] = deepcopy(
             device_statistics["model_performance"])
         for ip, network_benchmark in device_statistics["network_performance"].items(
@@ -73,7 +46,7 @@ def translate_statistics(ds: DeploymentStatus, statistics: Dict) -> Dict:
     return new_statistics
 
 
-def scission_strategy(slice_list: List[Slice]) -> Tuple[PapdlAPI,Dict]:
+def scission_strategy(slice_list: List[Slice]) -> Dict:
     global preferences
     statistics = {}
     api: PapdlAPI = None
@@ -101,7 +74,6 @@ def scission_strategy(slice_list: List[Slice]) -> Tuple[PapdlAPI,Dict]:
     finally:
         if api is not None:
             api.cleanup()
-        loadingBar.stop()
-    return api, translate_statistics(ds, statistics)
+    return translate_statistics(ds, statistics)
 
 

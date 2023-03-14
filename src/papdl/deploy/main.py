@@ -4,6 +4,7 @@ import logging
 from ..configure.configure import Configuration,Configurer
 import traceback
 from .deploy import deploy_configuration
+import dill as pickle
 
 
 @click.command()
@@ -11,15 +12,13 @@ from .deploy import deploy_configuration
 def deploy(
     configuration_path:str
 ):
-    logger = prepare_logger(logging.DEBUG)
-    logging.info("Deploying models...")
-    
     try:
+        logger = prepare_logger(logging.DEBUG)
+        logging.info("Deploying models...")
         configuration:Configuration = None
-        with open(configuration_path, "r") as f:
-            json_str = f.read()
-            configuration = Configurer.decode_configuration(json_str)
-            print(configuration)
+        with open(configuration_path,"rb") as f:
+            configuration = pickle.load(f)
+        print(configuration["blocks"])
         deploy_configuration(configuration)
     except Exception:
         logger.error(traceback.format_exc())

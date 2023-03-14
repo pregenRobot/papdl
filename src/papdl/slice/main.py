@@ -1,11 +1,12 @@
 import click
-from .slice import slice_model,slice_encode
+from .slice import slice_model
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-from keras.models import load_model
 import traceback
 from ..backend.common import prepare_logger
 from logging import DEBUG
+import keras
+import dill as pickle
 
 
 @click.command()
@@ -19,7 +20,7 @@ def slice(
     model = None
     logger = prepare_logger(DEBUG)
     try:
-        model = load_model(model_path)
+        model = keras.models.load_model(model_path)
     except Exception:
         logger.error(traceback.format_exc())
         exit(1)
@@ -31,13 +32,12 @@ def slice(
     sliced_model = slice_model(model)
 
     if(output is None):
-        output="slices.json"
+        output="slices.pickle"
 
     try:
-        # get_optimal_slices(sliced_model, pref)
-        with open(output,"w") as f:
-            f.write(slice_encode(sliced_model))
+        with open(output, "wb") as f:
+            pickle.dump(sliced_model,f,protocol=pickle.HIGHEST_PROTOCOL)
         logger.info(f"Saving sliced model list as '{output}'")
-    except NotImplementedError:
-        logger.error('Unknown split stretegy')
+    except Exception as e:
+        logger.error(traceback.format_exc())
         exit(1)

@@ -1,5 +1,5 @@
 
-
+import sys
 from time import sleep
 import os
 import json
@@ -51,18 +51,14 @@ CURR_HOST_PORT =  8765
 
 async def forward(websocket):
     async for data in websocket:
-        logger.info("Received INPUT!")
         try:
             input_buff = io.BytesIO()
             input_buff.write(data)
             input_buff.seek(0)
 
             input_uproot_buff = uproot.open(input_buff)
-            logger.info("Received INPUT!")
             model_input = input_uproot_buff["data"]["array"].array(library="np")
-            logger.info(model_input)
             model_output = model.predict(model_input)
-            logger.info(model_output)
             
             output_buff = io.BytesIO()
             output_uproot_buff = uproot.recreate(output_buff)
@@ -90,7 +86,7 @@ async def process_request(path:str,request_headers:Headers)->Optional[Tuple[HTTP
         if path == "/connect":
             logger.info(f"Attempting to connect to forward_url: {forward_url}/predict")
             fwu = f"{forward_url}/predict"
-            forward_connection = await ws_connect(fwu,open_timeout=None)
+            forward_connection = await ws_connect(fwu,open_timeout=None,max_size=sys.maxsize,read_limit=sys.maxsize,write_limit=sys.maxsize)
             logger.info(f"Successfully connected to forward_url: {fwu}")
             return (HTTPStatus.OK,{},b"")
         
@@ -108,7 +104,7 @@ async def process_request(path:str,request_headers:Headers)->Optional[Tuple[HTTP
 
 async def serve():
     logger.info("Attempting to serve current websocket server...")
-    async with  ws_serve(ws_handler=forward, host=CURR_HOST,port=CURR_HOST_PORT,logger=logger,process_request=process_request):
+    async with  ws_serve(ws_handler=forward, host=CURR_HOST,port=CURR_HOST_PORT,logger=logger,process_request=process_request,read_limit=sys.maxsize,max_size=sys.maxsize,write_limit=sys.maxsize):
         await asyncio.Future()
 
 
