@@ -32,8 +32,7 @@ class CertSpecs(TypedDict):
 
 
 class PapdlAPIContext:
-    def __init__(self, preference: BenchmarkPreferences = None,
-                 project_name=None, certSubject: CertSpecs = None):
+    def __init__(self, preference: BenchmarkPreferences = None, certSubject: CertSpecs = None):
         project_name: str
         self.client = docker.from_env()
         if preference is None:
@@ -42,16 +41,16 @@ class PapdlAPIContext:
         else:
             self.shell = False
 
-        r = RandomWords()
-        if project_name is None:
-            # project_name = r.get_random_word()
-            project_name = "debug"
+        # r = RandomWords()
+        # if project_name is None:
+        #     # project_name = r.get_random_word()
+        #     project_name = "debug"
 
         self.logger = preference["logger"]
         self.dircontext = {}
         self.local_user = getuser()
         self.local_uid = getuid()
-        self.project_name = project_name
+        self.project_name = preference["project_name"]
         self.dircontext["api_module_path"] = path.dirname(
             path.abspath(__file__))
         self.cleanup_target = CleanupTarget(
@@ -139,7 +138,6 @@ def _get_papdl_component(list_handler: Callable,
     if (len(labels.keys()) != 0):
         for k, v in labels.items():
             query["label"].append(f"{k}={v}")
-    print(query)
     return list_handler(filters=query)
 
 

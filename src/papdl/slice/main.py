@@ -1,7 +1,7 @@
-import click
-from .slice import slice_model
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+import click
+from .slice import slice_model
 import traceback
 from ..backend.common import prepare_logger
 from logging import DEBUG

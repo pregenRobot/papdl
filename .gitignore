@@ -6,5 +6,6 @@ tests
 **/*.json
 registry_mount
 src/papdl/backend/registry_volume/docker
-scripts/vgg16
 scripts/*.pickle
+scripts/models/**
+!scripts/.stub

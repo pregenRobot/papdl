@@ -1,3 +1,5 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import click
 from ..backend.common import prepare_logger
 import logging
@@ -9,8 +11,10 @@ import dill as pickle
 
 @click.command()
 @click.argument("configuration_path")
+@click.option("-d","--debug",type=bool,default=False)
 def deploy(
-    configuration_path:str
+    configuration_path:str,
+    debug:bool
 ):
     try:
         logger = prepare_logger(logging.DEBUG)
@@ -19,7 +23,7 @@ def deploy(
         with open(configuration_path,"rb") as f:
             configuration = pickle.load(f)
         print(configuration["blocks"])
-        deploy_configuration(configuration)
+        deploy_configuration(configuration,debug)
     except Exception:
         logger.error(traceback.format_exc())
         exit(1)

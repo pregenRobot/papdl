@@ -110,6 +110,10 @@ class PapdlSliceService(PapdlService):
         target_node = sb.device.name
 
         super().__init__(context=context,build_context=build_context,target_node=target_node,apptype=AppType.SLICE, name=name)
+    
+    def spawn(self,forward_service:"PapdlService",debug:bool=False):
+        env = [f"DEBUG={int(debug)}"]
+        super().spawn(forward_service=forward_service,extra_args={"env":env})
         
 class PapdlOrchestratorService(PapdlService):
     def __init__(self,context:PapdlAPIContext, configuration:Configuration):

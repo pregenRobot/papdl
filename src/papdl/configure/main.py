@@ -1,3 +1,5 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import click
 from .configure import Configuration,SearchConstraints,Configurer
 from ..backend.common import prepare_logger
@@ -6,12 +8,13 @@ from logging import DEBUG
 import dill as pickle
 import traceback
 
+
 @click.command()
 @click.argument("benchmark_result_path")
 @click.argument("source_device")
 @click.argument("input_size")
 @click.option("-o","--output")
-@click.option("-c","--search_constraints")
+@click.option("-c","--search_constraints",type=str,default="")
 def configure(
     benchmark_result_path:str,
     source_device:str,
@@ -27,7 +30,8 @@ def configure(
         with open(benchmark_result_path,"rb") as f:
             benchmark_result = pickle.load(f)
         
-        sc = SearchConstraints(layer_must_be_in_device={},layer_must_not_be_in_device={})
+        # sc = SearchConstraints(layer_must_be_in_device={},layer_must_not_be_in_device={})
+        sc:SearchConstraints = SearchConstraints.parse_from_str(search_constraints)
         
         configuration:Configuration =  configurer.parse_from_benchmark(
             benchmark_result=benchmark_result["result"],

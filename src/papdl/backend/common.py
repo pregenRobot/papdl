@@ -94,10 +94,18 @@ class PapdlException(Exception):
         self.message = message
 
 class BenchmarkPreferences(TypedDict):
+    project_name:str
+
     service_idle_detection: int
     startup_timeout: int
     split_strategy: SplitStrategy
     logger: logging.Logger
+
+    model_test_batch_size:int
+    model_test_number_of_repeats:int
+    bandwidth_test_duration_sec:int
+    latency_test_count:int
+    free_memory_multiplier:int
 
 
 

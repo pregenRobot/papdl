@@ -38,15 +38,6 @@ def clean(
 
 ):
     pac = PapdlAPIContext()
-    print(
-        benchmark_images,
-        benchmark_services,
-        slice_images,
-        slice_services,
-        registry_service,
-        iperf_services,
-        network,
-        secrets)
 
     if (benchmark_images):
         [i.remove(force=True)

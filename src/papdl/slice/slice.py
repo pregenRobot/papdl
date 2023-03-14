@@ -1,12 +1,12 @@
 from collections.abc import Iterable
 from enum import Enum
 from typing import List
-import keras
+from keras import models,layers
 
 
 class Slice:
     def __init__(self):
-        self.model: keras.Model = None
+        self.model: models.Model = None
         self.input_layer = 0
         self.output_layer = 0
         self.second_prediction = 0
@@ -37,6 +37,7 @@ def get_output_of_layer(layer, new_input, starting_layer_name):
         pl_outs.extend([get_output_of_layer(
             pl, new_input, starting_layer_name)])
 
+    print(type(layer),type(pl_outs[0]),type(pl_outs))
     out = layer(pl_outs[0] if len(pl_outs) == 1 else pl_outs)
     layer_outputs[layer.name] = out
     return out
@@ -52,16 +53,16 @@ def get_model(input_layer: int, output_layer: int):
     if input_layer == 0:
         new_input = selected_model.input
 
-        return keras.models.Model(new_input, selected_model.layers[output_layer].output)
+        return models.Model(new_input, selected_model.layers[output_layer].output)
     else:
-        new_input = keras.Input(batch_shape=selected_model.get_layer(
+        new_input = layers.Input(batch_shape=selected_model.get_layer(
             starting_layer_name).get_input_shape_at(0))
 
     new_output = get_output_of_layer(
         selected_model.layers[output_layer],
         new_input,
         starting_layer_name)
-    model = keras.models.Model(new_input, new_output)
+    model = models.Model(new_input, new_output)
 
     return model
 
@@ -81,7 +82,8 @@ def create_valid_splits():
         if len(layer._outbound_nodes) > 1:
             multi_output_count += len(layer._outbound_nodes) - 1
 
-        if isinstance(layer._inbound_nodes[0].inbound_layers, list):
+        #if isinstance(layer._inbound_nodes[0].inbound_layers, list):
+        if type(layer._inbound_nodes[0].inbound_layers) == list:
             if len(layer._inbound_nodes[0].inbound_layers) > 1:
                 multi_output_count -= (
                     len(layer._inbound_nodes[0].inbound_layers) - 1)
@@ -97,7 +99,7 @@ def create_valid_splits():
 selected_model = None
 
 
-def slice_model(model: keras.models.Model) -> List[Slice]:
+def slice_model(model: models.Model) -> List[Slice]:
     global selected_model
     global layer_outputs
     layer_outputs = {}

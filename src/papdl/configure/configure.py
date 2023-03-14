@@ -5,6 +5,7 @@ import heapq
 import keras
 from ..backend.common import PapdlException
 import logging
+import re
 
 
 class Layer():
@@ -44,10 +45,60 @@ class Worker():
     def __str__(self):
         return self.name
 
-
-class SearchConstraints(TypedDict):
-    layer_must_be_in_device: Dict[Layer, Worker]
-    layer_must_not_be_in_device: Dict[Layer, Worker]
+class SearchConstraints():
+    def __init__(self,layer_must_be_in_device:Dict[Layer,Worker],layer_must_not_be_in_device:Dict[Layer,Worker]):
+        self.layer_must_be_in_device:Dict[Layer,Worker] = layer_must_be_in_device
+        self.layer_must_not_be_in_device:Dict[Layer,Worker] = layer_must_not_be_in_device
+    
+    @staticmethod
+    def parse_match(match:str)->Dict[str,List[str]]:
+        result = {}
+        if match is not None:
+            conditions = match.split(",")
+            for key_val in conditions:
+                split_key_val = key_val.split(":")
+                key = split_key_val[0].strip()
+                val = split_key_val[1].strip()
+                result[key] = val
+        return result
+    
+    def __getitem__(self,item):
+        if item == "layer_must_be_in_device":
+            return self.layer_must_be_in_device
+        if item == "layer_must_not_be_in_device":
+            return self.layer_must_not_be_in_device
+        raise KeyError
+    
+    def __str__(self):
+        return f"must={self.layer_must_be_in_device},mustnot={self.layer_must_not_be_in_device}"
+    
+    @staticmethod
+    def coarsce_type(dict_to_coersce:Dict[str,str])->Dict[Layer,Worker]:
+        result:Dict[Layer,Worker] = {}
+        for layer_str,worker_str in dict_to_coersce.items():
+            result[Layer(name=layer_str,memory_usage=None)] = Worker(name=worker_str,free_memory=None)
+        return result
+    
+    @staticmethod
+    def parse_from_str(input_str:str):
+        try:
+            must_str = re.search(r"(?<=must=\{)(\w|\s|:|,)+(?=\})",input_str)
+            mustnot_str = re.search(r"(?<=mustnot=\{)(\w|\s|:|,)+(?=\})",input_str)
+            
+            layer_must_be_in_device:Dict[Layer,Worker] = {}
+            if(must_str is not None):
+                layer_must_be_in_device_str_dict = SearchConstraints.parse_match(must_str.group())
+                layer_must_be_in_device = SearchConstraints.coarsce_type(layer_must_be_in_device_str_dict)
+            
+            layer_must_not_be_in_device:Dict[Layer,Worker] = {}
+            if(mustnot_str is not None):
+                layer_must_not_be_in_device_str_dict = SearchConstraints.parse_match(mustnot_str.group())
+                layer_must_not_be_in_device = SearchConstraints.coarsce_type(layer_must_not_be_in_device_str_dict)
+            
+            return SearchConstraints(layer_must_be_in_device=layer_must_be_in_device,layer_must_not_be_in_device=layer_must_not_be_in_device)
+                
+        except Exception as e:
+            raise ValueError
 
 
 class SliceBlock(NamedTuple):
@@ -179,14 +230,6 @@ class Configurer():
         constraints: SearchConstraints
     ) -> Union[OptimalPath, None]:
         visited = {start_node: [start_node]}
-        # queue: List[Configurer.SearchStatus] = [
-        #     Configurer.SearchStatus(
-        #         total_distance=0,
-        #         path=Configurer.Path(
-        #             node=start_node,
-        #             penalty=0
-        #         ))
-        # ]
         queue = [(0,Configurer.Path(node=start_node,penalty=0))]
         while queue:
             total_penalty, path = heapq.heappop(queue)
@@ -201,13 +244,6 @@ class Configurer():
                     ):
                         visited[child_node] = new_path
                         new_penalty = total_penalty + child_path.penalty
-                        # new_search_status = Configurer.SearchStatus(
-                        #     total_distance=new_penalty,
-                        #     path=Configurer.Path(
-                        #         node=child_node,
-                        #         penalty=new_penalty
-                        #     )
-                        # )
                         heapq.heappush(queue,(new_penalty, Configurer.Path(node=child_node,penalty=new_penalty)))
                 elif child_node == start_node and len(visited[current_node]) > 1:
                     return Configurer.OptimalPath(
@@ -419,11 +455,6 @@ class Configurer():
         if isinstance(source_device, str):
             sd = Worker(name=source_device,free_memory=benchmark_result[source_device]["free_memory"])
 
-        # models: List[Layer] = [
-        #     Layer(m) for m in sorted(list(
-        #         benchmark_result[sd.name]['model_performance'].keys()
-        #     ))
-        # ]
         models: List[Layer] = []
         def model_total_ordering(k:str):
             _split = k.split("_")
@@ -438,7 +469,6 @@ class Configurer():
 
         global visited_node_map
 
-        # typing: Dict["Configuration.Node","Configuration.Node"]
         visited_node_map = {}
 
         head = Configurer.DecisionNode(
@@ -457,17 +487,7 @@ class Configurer():
         shortest_loop = Configurer.__find_shortest_loop(
             start_node=head,
             constraints=search_constraints,
-            # constraints={
-            #     "layer_must_not_be_in_device": {
-            #         models[0]: sd,
-            #         models[1]: devices[1],
-            #         models[4]: sd,
-            #         models[-1]: devices[1]
-            #     },
-            #     "layer_must_be_in_device": {}
-            # }
         )
-        print(shortest_loop)
         if shortest_loop is None:
             self.logger.error("No path found with the provided constraints")
             exit(1)

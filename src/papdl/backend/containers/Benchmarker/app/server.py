@@ -25,15 +25,30 @@ class Config(TypedDict):
     free_memory_multiplier:float
 
 config: Config
+# def load_benchmark_configs()->Config:
+#     # TODO: read from environment variables
+#     global config
+#     config = Config(
+#         model_test_batch_size=100,
+#         model_test_number_of_repeats=100,
+#         bandwidth_test_duration_sec=1,
+#         latency_test_count=1000,
+#         free_memory_multiplier = 0.5)
+
 def load_benchmark_configs()->Config:
-    # TODO: read from environment variables
     global config
     config = Config(
-        model_test_batch_size=1,
-        model_test_number_of_repeats=100,
-        bandwidth_test_duration_sec=1,
-        latency_test_count=1000,
-        free_memory_multiplier = 0.01)
+        model_test_batch_size=int(environ.get("MODEL_TEST_BATCH_SIZE")),
+        model_test_number_of_repeats=int(environ.get("MODEL_TEST_NUMBER_OF_REPEATS")),
+        bandwidth_test_duration_sec=int(environ.get("BANDWIDTH_TEST_DURATION_SEC")),
+        latency_test_count=int(environ.get("LATENCY_TEST_COUNT")),
+        free_memory_multiplier=1/int(environ.get("FREE_MEMORY_MULTIPLIER"))
+    )
+    
+
+def isDebug()->bool:
+    return int(environ.get("DEBUG")) == 1
+
 
 
 def get_available_memory():

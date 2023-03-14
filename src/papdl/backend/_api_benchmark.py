@@ -79,6 +79,9 @@ class PapdlBenchmarkAPI:
         self.context.logger.info(f"Spawning service for image {image_name}")
         # node_ips = list(map(lambda n: n.attrs["Status"]["Addr"],self.context.devices))
         nac = NetworkAttachmentConfig(self.context.network.name)
+        
+        benchmark_prefs = self.context.preference
+        self.context.logger.info(benchmark_prefs)
 
         service = self.context.client.services.create(
             image=image_name,
@@ -88,7 +91,14 @@ class PapdlBenchmarkAPI:
             # user=f"{self.context.local_user}:{self.context.local_user",
             # user=self.context.local_user,
             restart_policy=RestartPolicy(condition="none"),
-            env=[f"PAPDL_WORKERS={' '.join(iperf_test_ips)}"],
+            env=[
+                f"PAPDL_WORKERS={' '.join(iperf_test_ips)}",
+                f"MODEL_TEST_BATCH_SIZE={benchmark_prefs['model_test_batch_size']}",
+                f"MODEL_TEST_NUMBER_OF_REPEATS={benchmark_prefs['model_test_number_of_repeats']}",
+                f"BANDWIDTH_TEST_DURATION_SEC={benchmark_prefs['bandwidth_test_duration_sec']}",
+                f"LATENCY_TEST_COUNT={benchmark_prefs['latency_test_count']}",
+                f"FREE_MEMORY_MULTIPLIER={benchmark_prefs['free_memory_multiplier']}"
+            ],
             labels={
                 "papdl": "true",
                 "project_name": self.context.project_name,

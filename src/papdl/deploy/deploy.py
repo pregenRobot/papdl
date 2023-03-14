@@ -7,7 +7,7 @@ from logging import DEBUG
 from typing import List
 
 
-def deploy_configuration(configuration:Configuration):
+def deploy_configuration(configuration:Configuration,debug:bool=False):
     
     bp = BenchmarkPreferences(
         service_idle_detection=600,
@@ -29,8 +29,8 @@ def deploy_configuration(configuration:Configuration):
     for i in range(len(slice_services)-1):
         curr:PapdlSliceService = slice_services[i]
         forward:PapdlSliceService = slice_services[i+1]
-        curr.spawn(forward_service=forward)
-    slice_services[-1].spawn(forward_service=orchestrator_service)
+        curr.spawn(forward_service=forward,debug=debug)
+    slice_services[-1].spawn(forward_service=orchestrator_service,debug=debug)
         
     print([ss.service.attrs for ss in slice_services])
     
