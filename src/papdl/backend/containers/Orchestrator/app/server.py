@@ -82,11 +82,10 @@ async def record_response(request:Request,ws:Websocket):
             buff = io.BytesIO()
             buff.write(data)
             buff.seek(0)
-            uproot_buff = uproot.open(buff)
-            requestId = str(uproot_buff["requestId"])
-            output = uproot_buff["data"]["array"].array(library="np")
+            result:np.ndarray = np.load(buff)
+            requestId = result.dtype.names[1:][0]
             async with app.ctx.rrm_lock:
-                app.ctx.request_response_map[requestId].set_result(output)
+                app.ctx.request_response_map[requestId].set_result(result)
         except Exception as e:
             logger.error(traceback.format_exc())
             async with app.ctx.rrm_lock:
@@ -98,25 +97,26 @@ async def make_prediction(request:Request):
         request_buff = io.BytesIO()
         request_buff.write(request.body)
         request_buff.seek(0)
-        array:np.ndarray = np.load(request_buff)
-        expected_input_dims = app.ctx.input_dims
-
-        if len(expected_input_dims) + 1 != len(array.shape) or array.shape[1:] != expected_input_dims:
-            raise ValueError()
+        input_array:np.ndarray = np.load(request_buff)
         
+        expected_input_dims = app.ctx.input_dims
+        
+        if len(expected_input_dims) + 1 != len(input_array.shape) or input_array.shape[1:] != expected_input_dims:
+            raise ValueError()
+
+        requestId = str(uuid.uuid4())
+        input_array.dtype = [("value",float),(requestId,"V0")]
         send_buff = io.BytesIO()
-        uproot_buff = uproot.recreate(send_buff)
-        request_id = str(uuid.uuid4())
-        uproot_buff["requestId"] = request_id
-        uproot_buff["data"] = {"array":array}
+        np.save(send_buff,input_array)
         send_buff.seek(0)
+        
         loop = asyncio.get_running_loop()
         response_future = loop.create_future()
         async with app.ctx.rrm_lock:
-            app.ctx.request_response_map[request_id] = response_future
-        await app.ctx.forward_connection.send(uproot_buff)
+            app.ctx.request_response_map[requestId] = response_future
+        await app.ctx.forward_connection.send(send_buff)
         await response_future
-        
+
         response_buff = io.BytesIO()
         np.save(response_buff,response_future.result())
         response_buff.seek(0)
@@ -146,22 +146,19 @@ async def benchmark_performance(request:Request):
         sample:np.ndarray
         duration_fut:asyncio.Future
         async for i,(req_id, sample, duration_fut) in asynclib.enumerate(benchmark_results):
-            buff = io.BytesIO()
-            uproot_buff = uproot.recreate(buff)
-            uproot_buff["requestId"] = req_id
-            uproot_buff["data"] = {"array":sample}
-            buff.seek(0)
+            send_buff = io.BytesIO()
+            sample.dtype = [("value",float),(req_id,"V0")]
+            np.save(send_buff,sample)
+            send_buff.seek(0)
             _loop = asyncio.get_running_loop()
             response_future = _loop.create_future()
             async with app.ctx.rrm_lock:
                 app.ctx.request_response_map[req_id] = response_future
-
             begin = time_ns()
-            await app.ctx.forward_connection.send(buff)
+            await app.ctx.forward_connection.send(send_buff)
             await response_future
             end = time_ns()
             duration_fut.set_result(end - begin)
-        
         durations_completed = []
         for br in benchmark_results:
             await br[2]

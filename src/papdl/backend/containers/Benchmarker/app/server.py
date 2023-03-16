@@ -27,7 +27,7 @@ class Config(TypedDict):
 
 config: Config
 
-INPUT_MULTIPLIER = 10
+INPUT_MULTIPLIER = 4
 # def load_benchmark_configs()->Config:
 #     # TODO: read from environment variables
 #     global config

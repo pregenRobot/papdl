@@ -67,16 +67,14 @@ async def forward(websocket):
             input_buff = io.BytesIO()
             input_buff.write(data)
             input_buff.seek(0)
-
-            input_uproot_buff = uproot.open(input_buff)
-            model_input = input_uproot_buff["data"]["array"].array(library="np")
-            model_output = model.predict(model_input)
+            input_array = np.load(input_buff)
             
-            output_buff = io.BytesIO()
-            output_uproot_buff = uproot.recreate(output_buff)
-            output_uproot_buff["data"] = {"array":model_output}
-            output_uproot_buff["requestId"] = str(input_uproot_buff["requestId"])
+            requestId = input_array.dtype.names[1:][0]
+            model_output = model.predict(input_array.view(np.recarray).value)
+            model_output.dtype = [("value",float),(requestId,"V0")]
 
+            output_buff = io.BytesIO()
+            np.save(output_buff,model_output)
             output_buff.seek(0)
             await forward_connection.send(output_buff)
             gc.collect()
