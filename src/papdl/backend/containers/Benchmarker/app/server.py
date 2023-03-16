@@ -16,6 +16,7 @@ import gc
 from multiprocessing import Pool
 import contextlib
 import uuid
+from pympler.asizeof import asizeof
 
 class Config(TypedDict):
     model_test_number_of_repeats: int
@@ -25,6 +26,8 @@ class Config(TypedDict):
     free_memory_multiplier:float
 
 config: Config
+
+INPUT_MULTIPLIER = 10
 # def load_benchmark_configs()->Config:
 #     # TODO: read from environment variables
 #     global config
@@ -42,7 +45,7 @@ def load_benchmark_configs()->Config:
         model_test_number_of_repeats=int(environ.get("MODEL_TEST_NUMBER_OF_REPEATS")),
         bandwidth_test_duration_sec=int(environ.get("BANDWIDTH_TEST_DURATION_SEC")),
         latency_test_count=int(environ.get("LATENCY_TEST_COUNT")),
-        free_memory_multiplier=1/int(environ.get("FREE_MEMORY_MULTIPLIER"))
+        free_memory_multiplier=float(environ.get("FREE_MEMORY_MULTIPLIER"))
     )
     
 
@@ -55,13 +58,13 @@ def get_available_memory():
     return psutil.virtual_memory().free
 
 # https://gist.github.com/jamesmishra/34bac09176bc07b1f0c33886e4b19dc7
-def keras_model_memory_usage_in_bytes(model, *, batch_size: int):
+def memory_usage(model, *, batch_size: int):
     default_dtype = tf.keras.backend.floatx()
     shapes_mem_count = 0
     internal_model_mem_count = 0
     for layer in model.layers:
         if isinstance(layer, tf.keras.Model):
-            internal_model_mem_count += keras_model_memory_usage_in_bytes(
+            internal_model_mem_count += memory_usage(
                 layer, batch_size=batch_size
             )
         single_layer_mem = tf.as_dtype(layer.dtype or default_dtype).size
@@ -82,10 +85,10 @@ def keras_model_memory_usage_in_bytes(model, *, batch_size: int):
     )
 
     total_memory = (
-        batch_size * shapes_mem_count
+        batch_size * shapes_mem_count * INPUT_MULTIPLIER
         + internal_model_mem_count
-        + trainable_count
-        + non_trainable_count
+        # + trainable_count
+        # + non_trainable_count
     )
     return total_memory
 
@@ -130,7 +133,6 @@ def benchmark_network(papdl_workers:List[str]) -> Dict:
         del client
     return result
 
-
 def single_model_benchmark(args:Dict):
     mp = args["mp"]
     fmm = args["fmm"]
@@ -139,7 +141,7 @@ def single_model_benchmark(args:Dict):
 
     free_memory = get_available_memory()
     model:tf.keras.Model = load_model(mp)
-    model_memory_usage = keras_model_memory_usage_in_bytes(model=model,batch_size=config["model_test_batch_size"])
+    model_memory_usage = memory_usage(model=model,batch_size=config["model_test_batch_size"])
     model_name = model.name
     dimensions = (mtbs,) + model.input_shape[1:]
     print(f"Loaded model : {model_name} from path: {mp} with input_dims: {dimensions}",flush=True)
@@ -166,10 +168,11 @@ def single_model_benchmark(args:Dict):
     end = time()
     
     output:np.array = model(sample_input,training = False)
-    file_name = f"fsize_{str(uuid.uuid4())}"
-    np.save(file_name,"output")
+    # file_name = f"fsize_{str(uuid.uuid4())}"
+    # np.save(file_name,"output")
     
-    size = stat(f"{file_name}.npy").st_size
+    # size = stat(f"{file_name}.npy").st_size
+    size = asizeof(output)
     result = {}
     result["benchmark_size"] = size
     result["benchmark_time"] = (end - start) / mtbs

@@ -18,7 +18,7 @@ import dill as pickle
 @click.option("-r","--model_test_number_of_repeats",type=int,default=100)
 @click.option("-d","--bandwidth_test_duration_sec",type=int,default=1)
 @click.option("-l","--latency_test_count",type=int,default=1000)
-@click.option("-m","--free_memory_multiplier",type=int,default=2)
+@click.option("-m","--free_memory_multiplier",type=float,default=0.9)
 #TODO: search constraints
 def benchmark(
     sliced_model_path:str,
@@ -31,7 +31,7 @@ def benchmark(
     model_test_number_of_repeats:int,
     bandwidth_test_duration_sec:int,
     latency_test_count:int,
-    free_memory_multiplier:int
+    free_memory_multiplier:float
 ):
     logger = prepare_logger(DEBUG)
     logger.info("Loading Sliced Models...")
@@ -46,6 +46,7 @@ def benchmark(
         bandwidth_test_duration_sec=bandwidth_test_duration_sec,
         latency_test_count=latency_test_count,
         free_memory_multiplier=free_memory_multiplier,
+
         project_name=project_name
     )
     try:

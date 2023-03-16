@@ -3,7 +3,7 @@ from typing import NamedTuple, List, Dict, TypedDict, Union, Tuple
 from json import loads, dumps
 import heapq
 import keras
-from ..backend.common import PapdlException
+from ..backend.common import PapdlException,BenchmarkPreferences
 import logging
 import re
 
@@ -115,6 +115,7 @@ class Configuration(TypedDict):
     constraints: SearchConstraints
     source_device:Worker
     input_shape: Tuple[int]
+    benchmark_preferences:BenchmarkPreferences
     
 class ConfigurationPreferences(TypedDict):
     logger: logging.Logger
@@ -196,7 +197,7 @@ class Configurer():
         total_distance: float
         path: "Configurer.Path"
 
-    def __valid_path(path: List[DecisionNode], constraints: SearchConstraints):
+    def __valid_path(path: List[DecisionNode], constraints: SearchConstraints,benchmark_pref:BenchmarkPreferences):
         node: Configurer.DecisionNode
         for node in path:
             for model, device in constraints["layer_must_be_in_device"].items(
@@ -221,13 +222,14 @@ class Configurer():
             node_memory_usage[node.device]+=node.model.memory_usage
             
             for worker,nmu in node_memory_usage.items():
-                if nmu > worker.free_memory:
+                if nmu > worker.free_memory * 1/benchmark_pref["free_memory_multiplier"]:
                     return False
         return True
 
     def __find_shortest_loop(
         start_node: DecisionNode,
-        constraints: SearchConstraints
+        constraints: SearchConstraints,
+        benchmark_pref: BenchmarkPreferences
     ) -> Union[OptimalPath, None]:
         visited = {start_node: [start_node]}
         queue = [(0,Configurer.Path(node=start_node,penalty=0))]
@@ -240,7 +242,8 @@ class Configurer():
                     new_path = visited[current_node] + [child_node]
                     if Configurer.__valid_path(
                         path=new_path,
-                        constraints=constraints
+                        constraints=constraints,
+                        benchmark_pref=benchmark_pref
                     ):
                         visited[child_node] = new_path
                         new_penalty = total_penalty + child_path.penalty
@@ -443,7 +446,8 @@ class Configurer():
         source_device: Union[Worker, str],
         input_size: int,
         search_constraints: SearchConstraints,
-        model_list:List[keras.models.Model]
+        model_list:List[keras.models.Model],
+        benchmark_pref:BenchmarkPreferences
     ) -> Configuration:
         devices: List[Worker] = [
             Worker(k,benchmark_result[k]["free_memory"]) for k in list(
@@ -487,6 +491,7 @@ class Configurer():
         shortest_loop = Configurer.__find_shortest_loop(
             start_node=head,
             constraints=search_constraints,
+            benchmark_pref=benchmark_pref
         )
         if shortest_loop is None:
             self.logger.error("No path found with the provided constraints")
@@ -504,5 +509,6 @@ class Configurer():
             devices=devices,
             constraints=search_constraints,
             source_device=sd,
-            input_shape=input_shape
+            input_shape=input_shape,
+            benchmark_preferences=benchmark_pref
         )

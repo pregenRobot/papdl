@@ -5,25 +5,20 @@ from ..backend.common import BenchmarkPreferences,prepare_logger,SplitStrategy
 from ..backend.api_common import PapdlAPIContext
 from logging import DEBUG
 from typing import List
+from docker.models.services import Service
 
 
 def deploy_configuration(configuration:Configuration,debug:bool=False):
     
-    bp = BenchmarkPreferences(
-        service_idle_detection=600,
-        startup_timeout=600,
-        split_strategy=SplitStrategy.from_str("scission"),
-        logger=prepare_logger(DEBUG)
-    )
+    logger = prepare_logger()
+    
+    bp = configuration["benchmark_preferences"]
     input_shape = configuration["input_shape"]
     pac = PapdlAPIContext(preference=bp)
 
     slice_services:List[PapdlSliceService] = [PapdlSliceService(pac,sb) for sb in configuration["blocks"]]
     
     orchestrator_service = PapdlOrchestratorService(pac,configuration)
-    
-    print(slice_services)
-    print(orchestrator_service)
     
     orchestrator_service.spawn(forward_service=slice_services[0],slices=slice_services,input_shape=input_shape)
     for i in range(len(slice_services)-1):
@@ -32,6 +27,10 @@ def deploy_configuration(configuration:Configuration,debug:bool=False):
         curr.spawn(forward_service=forward,debug=debug)
     slice_services[-1].spawn(forward_service=orchestrator_service,debug=debug)
         
-    print([ss.service.attrs for ss in slice_services])
+    logger.info("Issued service startup request")
+    all_services = [*slice_services,orchestrator_service]
+    s:Service
+    for s in all_services:
+        logger.info(s)
     
-    print(orchestrator_service.service.attrs)
+    

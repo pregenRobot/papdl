@@ -68,7 +68,9 @@ app.ctx.rrm_lock = asyncio.Lock()
 app.ctx.request_response_map:Dict[str,Future] = {}
 app.ctx.input_dims = get_input_dims()
 app.config.WEBSOCKET_MAX_SIZE = sys.maxsize
-app.config.KEEP_ALIVE_TIMEOUT = 600
+app.config.KEEP_ALIVE_TIMEOUT = sys.maxsize
+app.config.RESPONSE_TIMEOUT = sys.maxsize
+app.config.RESPONSE_TIMEOUT = sys.maxsize
 
 # request_response_map:Dict[str,Future] = {}
 # rrm_lock = asyncio.Lock()

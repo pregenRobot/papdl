@@ -38,6 +38,9 @@ psutil = "^5.9.4"
 coloredlogs = "^15.0.1"
 dill = "^0.3.6"
 asyncstdlib = "^3.10.5"
+pympler = "^1.0.1"
+memory-profiler = "^0.61.0"
+filprofiler = "^2023.3.0"
 
 [tool.poetry.scripts]
 papdl = "papdl.cli:main"

@@ -4,9 +4,6 @@ from time import sleep
 import os
 import json
 
-import websockets
-
-websockets.enable_
 
 from websockets.client import connect as ws_connect
 from websockets.server import serve as ws_serve
@@ -23,7 +20,7 @@ from keras import Model
 import getpass
 import traceback
 import uproot
-
+import gc
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '3'
 
@@ -82,6 +79,7 @@ async def forward(websocket):
 
             output_buff.seek(0)
             await forward_connection.send(output_buff)
+            gc.collect()
         except:
             logger.error("Caught Exception! Dropping input...")
             logger.error(traceback.format_exc())

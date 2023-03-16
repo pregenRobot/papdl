@@ -961,6 +961,36 @@ files = [
 devel = ["colorama", "json-spec", "jsonschema", "pylint", "pytest", "pytest-benchmark", "pytest-cache", "validictory"]
 
 [[package]]
+name = "filprofiler"
+version = "2023.3.0"
+description = "A memory profiler for data batch processing applications."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "filprofiler-2023.3.0-cp310-cp310-macosx_10_15_x86_64.whl", hash = "sha256:b3b7af9f58cd4833f9ec0dca4d9ea37de7c1716f382dfb79d88e86efc3a9f0c8"},
+    {file = "filprofiler-2023.3.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:5cd864c75222fcfaff305a9df7ab64e4dbcc9fa250e7fa9619c35280783ee479"},
+    {file = "filprofiler-2023.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5e51bc3801ff1b16f88227ec9b3ef1a0b56159121c873246528869ff1bea9781"},
+    {file = "filprofiler-2023.3.0-cp311-cp311-macosx_10_15_x86_64.whl", hash = "sha256:eefff1647a5f61bb221f97ed0269c0537cc8dccd4003839342561affdd4a0462"},
+    {file = "filprofiler-2023.3.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:4246f9ac1652cdcc4a86ccedbcd966924ca56b87714e8df4baa4143ed5df1461"},
+    {file = "filprofiler-2023.3.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0ab091c1994e5e100ab9c26a20fa3a52c42a8b09bdb738c881e1df9d6cd58d68"},
+    {file = "filprofiler-2023.3.0-cp37-cp37m-macosx_10_15_x86_64.whl", hash = "sha256:2c8ba0206d63a2b1a28ed9a74acb9cd6a683489a969ce8cbd37147a3828e447d"},
+    {file = "filprofiler-2023.3.0-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:978d9b7d7f25325fbddec99fdca800b495f7ec9b0b9ee591a356042b1a384978"},
+    {file = "filprofiler-2023.3.0-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:89a9324e901840d0bc4a753163a840d88eaa02b0b3e6a2f5bfd57ac003f28867"},
+    {file = "filprofiler-2023.3.0-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:ff5ebcdfc5b055145039c5466a473183a9e74d410c0f91b48dac33fd530e7a0a"},
+    {file = "filprofiler-2023.3.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e8100545c89e1e656575c966e56fa3f7d0ac6e0e3bddd5794267139907d88f2e"},
+    {file = "filprofiler-2023.3.0-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:85bc9e2d44ab8935b623adc351a9d8ef27a9509e0c86bdeb288530c7b247c64e"},
+    {file = "filprofiler-2023.3.0-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:06179270dfd871b2f0d1df5f364539173167367a318304ee940954894e887f2b"},
+    {file = "filprofiler-2023.3.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8e926195a47f57cf1ac3421749665870c40085bab1fa98328e3e2839fbbca66d"},
+]
+
+[package.dependencies]
+threadpoolctl = "*"
+
+[package.extras]
+dev = ["auditwheel", "black", "blosc", "cython", "flake8", "ipykernel", "ipython", "jinja2 (<3.1)", "nbconvert", "numexpr", "numpy", "pampy", "psutil", "pytest", "towncrier", "twine", "wheel"]
+
+[[package]]
 name = "flatbuffers"
 version = "22.12.6"
 description = "The FlatBuffers serialization format for Python"
@@ -2008,6 +2038,21 @@ files = [
 traitlets = "*"
 
 [[package]]
+name = "memory-profiler"
+version = "0.61.0"
+description = "A module for monitoring memory usage of a python program"
+category = "main"
+optional = false
+python-versions = ">=3.5"
+files = [
+    {file = "memory_profiler-0.61.0-py3-none-any.whl", hash = "sha256:400348e61031e3942ad4d4109d18753b2fb08c2f6fb8290671c5513a34182d84"},
+    {file = "memory_profiler-0.61.0.tar.gz", hash = "sha256:4e5b73d7864a1d1292fb76a03e82a3e78ef934d06828a698d9dada76da2067b0"},
+]
+
+[package.dependencies]
+psutil = "*"
+
+[[package]]
 name = "mistune"
 version = "2.0.5"
 description = "A sane Markdown parser with useful plugins and renderers"
@@ -2798,6 +2843,18 @@ files = [
 plugins = ["importlib-metadata"]
 
 [[package]]
+name = "pympler"
+version = "1.0.1"
+description = "A development tool to measure, monitor and analyze the memory behavior of Python objects."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "Pympler-1.0.1-py3-none-any.whl", hash = "sha256:d260dda9ae781e1eab6ea15bacb84015849833ba5555f141d2d9b7b7473b307d"},
+    {file = "Pympler-1.0.1.tar.gz", hash = "sha256:993f1a3599ca3f4fcd7160c7545ad06310c9e12f70174ae7ae8d4e25f6c5d3fa"},
+]
+
+[[package]]
 name = "pyopenssl"
 version = "23.0.0"
 description = "Python wrapper module around the OpenSSL library"
@@ -3549,6 +3606,18 @@ docs = ["myst-parser", "pydata-sphinx-theme", "sphinx"]
 test = ["pre-commit", "pytest (>=7.0)", "pytest-timeout"]
 
 [[package]]
+name = "threadpoolctl"
+version = "3.1.0"
+description = "threadpoolctl"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "threadpoolctl-3.1.0-py3-none-any.whl", hash = "sha256:8b99adda265feb6773280df41eece7b2e6561b772d21ffd52e372f999024907b"},
+    {file = "threadpoolctl-3.1.0.tar.gz", hash = "sha256:a335baacfaa4400ae1f0d8e3a58d6674d2f8828e3716bb2802c44955ad391380"},
+]
+
+[[package]]
 name = "tinycss2"
 version = "1.2.1"
 description = "A tiny CSS parser"
@@ -4168,4 +4237,4 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8,<3.11"
-content-hash = "daecd9c528dfb493ab17eb2bfd71e9e452768b61cf87e8e99e7cec10b2a9e7e7"
+content-hash = "471959bba1b8ff1d9ff11addeabb43741ab45b44acc89e7660cea5138e4ebd20"

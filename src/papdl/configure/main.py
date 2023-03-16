@@ -38,7 +38,8 @@ def configure(
             source_device=source_device,
             input_size=int(input_size), 
             search_constraints=sc,
-            model_list=benchmark_result["slice_list"])
+            model_list=benchmark_result["slice_list"],
+            benchmark_pref=benchmark_result["arg_preferences"])
     
         if output is None:
             output = "configuration.pickle"

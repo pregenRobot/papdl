@@ -1,14 +1,15 @@
 
-from .api_common import PapdlAPIContext, prepare_build_context, copy_app, AppType,get_docker_logs
+from .api_common import PapdlAPIContext, prepare_build_context, copy_app, AppType,get_docker_logs,get_service_status
 from ..configure.configure import Configuration, SliceBlock
 from os import path,mkdir
 from typing import TypedDict,List,Union,Dict,Tuple
-from .common import PapdlException
+from .common import PapdlException,ContainerBehaviourException
 
 from docker.models.services import Service
 from docker.models.nodes import Node
 from docker.models.images import Image
 from docker.types import NetworkAttachmentConfig,RestartPolicy,EndpointSpec
+from time import time,sleep
 
 
 class PapdlService:
@@ -63,6 +64,38 @@ class PapdlService:
         self.context.logger.info(f"Pushing image {self.image_name} to registry for distribution")
         self.context.client.images.push(self.image_name)
         self.image = image
+
+    @staticmethod
+    def _all_match_any_of(_all: List[str], _any: List[str]) -> bool:
+        return all([True if x in _any else False for x in _all])
+        
+    def wait_for_stability(self,timeout_on:List[str]):
+        
+        self.context.logger.info(f"Spawning service {self.service.name}...")
+        
+        start_time = time()
+        while True:
+            if time() - \
+                start_time > self.context.preference["startup_timeout"]:
+                    raise ContainerBehaviourException(
+                        f"Service {self.service.name} timed out trying to spawn...",service=self.service
+                    )
+            else:
+                service_status = get_service_status(service=self.service)
+                self.context.logger.debug(
+                    f"Service {self.service.name} has status {service_status}"
+                )
+                if PapdlService._all_match_any_of(service_status,timeout_on):
+                    break
+                if PapdlService._all_match_any_of(
+                    service_status,
+                    ["failed","shutdown","rejected","orphaned","remove"]
+                ):
+                    raise ContainerBehaviourException(f"Service {self.service.name} was/has {service_status}", service=self.service)
+                sleep(1)
+                
+        
+        
         
     def spawn(self,forward_service:"PapdlService",extra_args={})->"PapdlService":
         image_name = self.image.tags[0]
@@ -88,6 +121,7 @@ class PapdlService:
         }
         self.service = self.context.client.services.create(**spawning_configuration)
         self.context.cleanup_target["services"].append(self.service)
+        self.wait_for_stability(self.service,["running"])
         return self
 
 
@@ -112,7 +146,10 @@ class PapdlSliceService(PapdlService):
         super().__init__(context=context,build_context=build_context,target_node=target_node,apptype=AppType.SLICE, name=name)
     
     def spawn(self,forward_service:"PapdlService",debug:bool=False):
-        env = [f"DEBUG={int(debug)}"]
+        env = [
+            f"DEBUG={int(debug)}",
+            f"FORWARD={forward_service.service_name}"
+        ]
         super().spawn(forward_service=forward_service,extra_args={"env":env})
         
 class PapdlOrchestratorService(PapdlService):
