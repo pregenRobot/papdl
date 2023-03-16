@@ -222,7 +222,7 @@ class Configurer():
             node_memory_usage[node.device]+=node.model.memory_usage
             
             for worker,nmu in node_memory_usage.items():
-                if nmu > worker.free_memory * 1/benchmark_pref["free_memory_multiplier"]:
+                if nmu > worker.free_memory * benchmark_pref["free_memory_multiplier"]:
                     return False
         return True
 

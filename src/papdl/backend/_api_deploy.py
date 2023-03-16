@@ -121,7 +121,7 @@ class PapdlService:
         }
         self.service = self.context.client.services.create(**spawning_configuration)
         self.context.cleanup_target["services"].append(self.service)
-        self.wait_for_stability(self.service,["running"])
+        self.wait_for_stability(["running"])
         return self
 
 
@@ -145,12 +145,12 @@ class PapdlSliceService(PapdlService):
 
         super().__init__(context=context,build_context=build_context,target_node=target_node,apptype=AppType.SLICE, name=name)
     
-    def spawn(self,forward_service:"PapdlService",debug:bool=False):
+    def spawn(self,forward_service:"PapdlService",debug:bool=False)->"PapdlSliceService":
         env = [
             f"DEBUG={int(debug)}",
             f"FORWARD={forward_service.service_name}"
         ]
-        super().spawn(forward_service=forward_service,extra_args={"env":env})
+        return super().spawn(forward_service=forward_service,extra_args={"env":env})
         
 class PapdlOrchestratorService(PapdlService):
     def __init__(self,context:PapdlAPIContext, configuration:Configuration):

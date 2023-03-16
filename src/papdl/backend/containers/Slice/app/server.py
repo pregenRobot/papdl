@@ -60,6 +60,7 @@ model.compile()
 CURR_HOST = "0.0.0.0"
 CURR_HOST_PORT =  8765
 
+print("UPROOT SERIALIZATION")
 
 async def forward(websocket):
     async for data in websocket:

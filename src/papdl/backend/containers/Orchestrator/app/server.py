@@ -44,6 +44,7 @@ def prepare_logger()->logging.Logger:
 
 CURR_HOST = "0.0.0.0"
 CURR_HOST_PORT = 8765
+print("UPROOT SERIALIZATION")
 
 def get_next_url()->str:
     forward_service_name = os.environ.get("FORWARD")

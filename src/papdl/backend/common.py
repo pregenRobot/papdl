@@ -105,7 +105,7 @@ class BenchmarkPreferences(TypedDict):
     model_test_number_of_repeats:int
     bandwidth_test_duration_sec:int
     latency_test_count:int
-    free_memory_multiplier:int
+    free_memory_multiplier:float
 
 
 
