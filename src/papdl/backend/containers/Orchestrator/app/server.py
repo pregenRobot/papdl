@@ -45,6 +45,8 @@ def prepare_logger()->logging.Logger:
 CURR_HOST = "0.0.0.0"
 CURR_HOST_PORT = 8765
 
+print("NUMPY SERIALIZATION")
+
 def get_next_url()->str:
     forward_service_name = os.environ.get("FORWARD")
     logger.info(f"Loaded forward url: {forward_service_name}")

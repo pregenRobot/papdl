@@ -59,6 +59,7 @@ model.compile()
 
 CURR_HOST = "0.0.0.0"
 CURR_HOST_PORT =  8765
+print("NUMPY SERIALIZATION")
 
 
 async def forward(websocket):
@@ -68,13 +69,27 @@ async def forward(websocket):
             input_buff.write(data)
             input_buff.seek(0)
             input_array = np.load(input_buff)
+            print(input_array.shape,flush=True)
+            print(input_array.dtype,flush=True)
             
             requestId = input_array.dtype.names[1:][0]
-            model_output = model.predict(input_array.view(np.recarray).value)
-            model_output.dtype = [("value",float),(requestId,"V0")]
-
+            model_output = model.predict(input_array["value"])
+            print(model_output.shape,flush=True)
+            print(model_output.dtype,flush=True)
+            # model_output.dtype = [("value",float),(requestId,"V0")]
+            output_array = np.array(
+                model_output,
+                copy=False,
+                dtype=[
+                    ("value",float),
+                    (requestId,"V0")
+                ]
+            )
+            print(output_array.shape,flush=True)
+            print(output_array.dtype,flush=True)
+            
             output_buff = io.BytesIO()
-            np.save(output_buff,model_output)
+            np.save(output_buff,output_array)
             output_buff.seek(0)
             await forward_connection.send(output_buff)
             gc.collect()
