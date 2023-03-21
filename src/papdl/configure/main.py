@@ -46,6 +46,7 @@ def configure(
         with open(output, "wb") as f:
             pickle.dump(configuration,f,protocol=pickle.HIGHEST_PROTOCOL)
         logger.info(f"Saving sliced model list as '{output}'")
+        configurer.tabulated_print(configuration=configuration)
     except Exception as e:
         logger.error(traceback.format_exc())
     

@@ -1,32 +1,37 @@
 from websockets.client import connect as ws_connect
 from websockets.server import serve as ws_serve
 import gc
-import keras.applications as apps
 import numpy as np
 import uproot
 import io
 import sys
 import asyncio
 from pympler.asizeof import asizeof
+from time import time_ns
+import logging
 
-
-model = apps.VGG16()
+# model = apps.VGG16()
+logging.basicConfig(
+    format="%(message)s",
+    level=logging.INFO,
+)
 
 async def forward(websocket):
     async for data in websocket:
+        begin = time_ns()
         input_buff = io.BytesIO()
         input_buff.write(data)
         input_buff.seek(0)
-
-        input_uproot_buff = uproot.open(input_buff)
-        model_input = input_uproot_buff["data"]["array"].array(library="np")
-        
+        input_arr = np.load(input_buff)
         output_buff = io.BytesIO()
-        output_uproot_buff = uproot.recreate(output_buff)
-        output_uproot_buff["data"] = {"array":model_input}
-
+        np.save(output_buff,input_arr)
         output_buff.seek(0)
+        end = time_ns()
+        print(f"Server processing time: {end - begin}",flush=True)
+        begin = time_ns()
         await websocket.send(output_buff)
+        end = time_ns()
+        print(f"Server Send Time: {end - begin}",flush=True)
         
         
 async def serve():
@@ -34,19 +39,20 @@ async def serve():
         await input()
         
 async def input():
-    async with ws_connect("ws://127.0.0.1:9999",read_limit=sys.maxsize,write_limit=sys.maxsize,max_size=sys.maxsize) as websocket:
+    async with ws_connect("ws://127.0.0.1:9999",read_limit=sys.maxsize,write_limit=sys.maxsize,max_size=sys.maxsize,logger=logging.LoggerAdapter(
+                              logging.getLogger("websockets.erver"),None)) as websocket:
         random_input = np.random.random_sample((10,224,224,3))
         output_buff = io.BytesIO()
-        uproot_buff = uproot.recreate(output_buff)
-        uproot_buff["data"] = {"array":random_input}
+        np.save(output_buff,random_input)
         output_buff.seek(0)
+        begin = time_ns()
         await websocket.send(output_buff)
+        end = time_ns()
+        print(f"Client send time {end - begin}",flush=True)
+        begin = time_ns()
         result = await websocket.recv()
-
-        input_buff = io.BytesIO()
-        input_buff.write(result)
-        uproot_input_buff = uproot.open(input_buff)
-        output = uproot_input_buff["data"]["array"].array(library="np")
+        end = time_ns()
+        print(f"Client receive time {end - begin}",flush=True)
         
         
 if __name__ == "__main__":

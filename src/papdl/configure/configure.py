@@ -1,11 +1,12 @@
 from logging import Logger
-from typing import NamedTuple, List, Dict, TypedDict, Union, Tuple
+from typing import NamedTuple, List, Dict, TypedDict, Union, Tuple, MutableSet
 from json import loads, dumps
 import heapq
 import keras
 from ..backend.common import PapdlException,BenchmarkPreferences
 import logging
 import re
+from tabulate import tabulate
 
 
 class Layer():
@@ -44,6 +45,7 @@ class Worker():
 
     def __str__(self):
         return self.name
+
 
 class SearchConstraints():
     def __init__(self,layer_must_be_in_device:Dict[Layer,Worker],layer_must_not_be_in_device:Dict[Layer,Worker]):
@@ -116,16 +118,29 @@ class Configuration(TypedDict):
     source_device:Worker
     input_shape: Tuple[int]
     benchmark_preferences:BenchmarkPreferences
+    penalty:float
     
 class ConfigurationPreferences(TypedDict):
     logger: logging.Logger
     search_constraints:SearchConstraints
 
 
+
 class Configurer():
 
     def __init__(self, logger: Logger):
         self.logger = logger
+    
+    def tabulated_print(self,configuration:Configuration):
+        slice_blocks:List[SliceBlock]  = configuration["blocks"]
+        
+        table = []
+        table.append(["Slice Indices","Device","Intermediary Memory Usage (MB)"])
+        sb:SliceBlock
+        for sb in slice_blocks:
+            table.append([str(sb.slice_index),sb.device.name,sum([l.memory_usage/1000/1000 for l in sb.layers])])
+        self.logger.info(tabulate(table,headers="firstrow",tablefmt="outline"))
+        self.logger.info(f"PENALTY: {configuration['penalty']}")
 
     class DecisionNode():
         def __init__(self,
@@ -135,6 +150,9 @@ class Configurer():
             self.model: Layer = model
             self.device: Worker = device
             self.paths: List[Configurer.Path] = paths
+
+        def __lt__(self, other):
+            return False
 
         def __hash__(self) -> int:
             if self.model is None:
@@ -231,27 +249,52 @@ class Configurer():
         constraints: SearchConstraints,
         benchmark_pref: BenchmarkPreferences
     ) -> Union[OptimalPath, None]:
-        visited = {start_node: [start_node]}
-        queue = [(0,Configurer.Path(node=start_node,penalty=0))]
+        # visited = {start_node: [start_node]}
+        # queue = [(0,Configurer.Path(node=start_node, penalty=0))]
+        # while queue:
+        #     total_penalty, path = heapq.heappop(queue)
+        #     current_node = path.node
+        #     for child_path in current_node.paths:
+        #         child_node = child_path.node
+        #         if child_node not in visited:
+        #             new_path = visited[current_node] + [child_node]
+        #             if Configurer.__valid_path(
+        #                 path = new_path,
+        #                 constraints=constraints,
+        #                 benchmark_pref=benchmark_pref
+        #             ):
+        #                 visited[child_node] = new_path
+        #                 new_penalty = total_penalty + child_path.penalty
+        #                 heapq.heappush(queue, (new_penalty, Configurer.Path(node=child_node, penalty=new_penalty)))
+        #             elif child_node == start_node and len(visited[current_node]) > 1:
+        #                 return Configurer.OptimalPath(
+        #                     path = visited[current_node] + [start_node], penalty=child_path.penalty
+        #                 )
+        # return None
+        visited = set()
+        queue = [(0, start_node, [], visited)]
         while queue:
-            total_penalty, path = heapq.heappop(queue)
-            current_node = path.node
-            for child_path in current_node.paths:
-                child_node = child_path.node
-                if child_node not in visited:
-                    new_path = visited[current_node] + [child_node]
-                    if Configurer.__valid_path(
-                        path=new_path,
-                        constraints=constraints,
-                        benchmark_pref=benchmark_pref
-                    ):
-                        visited[child_node] = new_path
-                        new_penalty = total_penalty + child_path.penalty
-                        heapq.heappush(queue,(new_penalty, Configurer.Path(node=child_node,penalty=new_penalty)))
-                elif child_node == start_node and len(visited[current_node]) > 1:
-                    return Configurer.OptimalPath(
-                        path=visited[current_node] + [start_node], penalty=child_path.penalty
-                    )
+            penalty:float
+            current_node:Configurer.DecisionNode
+            traversed_nodes:List[Configurer.DecisionNode]
+            visited:MutableSet
+            
+            penalty, current_node, traversed_nodes, visited = heapq.heappop(queue)
+            # print("PENALTY", penalty, "CURRENT_NODE", str(current_node), "TRAVERSED NODES", [str(n) for n in traversed_nodes], "VISITED NODES", [ str(n) for n in visited])
+            # print("="*20)
+            
+            if current_node in visited and current_node == start_node:
+                return Configurer.OptimalPath(path=traversed_nodes,penalty=penalty)
+
+            if current_node not in visited:
+                visited.add(current_node)
+                traversed_nodes = traversed_nodes + [current_node]
+
+                for p in current_node.paths:
+                    new_penalty = penalty + p.penalty
+                    new_path = traversed_nodes + [p.node]
+                    if Configurer.__valid_path(new_path,constraints,benchmark_pref) and new_penalty != float('inf'):
+                        heapq.heappush(queue, (new_penalty, p.node,traversed_nodes,visited.copy()))
         return None
 
     def __calculate_performance_penalty(
@@ -488,6 +531,7 @@ class Configurer():
             input_size=input_size
         )
 
+        self.logger.info(f"Searching path with benchmark preferences: {benchmark_pref} and search preferences: {search_constraints}")
         shortest_loop = Configurer.__find_shortest_loop(
             start_node=head,
             constraints=search_constraints,
@@ -503,12 +547,14 @@ class Configurer():
         
         input_shape = blocks[0].model.input_shape[1:]
 
-        return Configuration(
+        config = Configuration(
             slices=models,
             blocks=blocks,
             devices=devices,
             constraints=search_constraints,
             source_device=sd,
             input_shape=input_shape,
-            benchmark_preferences=benchmark_pref
+            benchmark_preferences=benchmark_pref,
+            penalty=shortest_loop.penalty
         )
+        return config
