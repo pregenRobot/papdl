@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "papdl"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["Tamim Azmain <maat1@st-andrews.ac.uk>"]
 readme = "README.md"
@@ -42,6 +42,7 @@ pympler = "^1.0.1"
 memory-profiler = "^0.61.0"
 filprofiler = "^2023.3.0"
 tabulate = "^0.9.0"
+lz4 = "^4.3.2"
 
 [tool.poetry.scripts]
 papdl = "papdl.cli:main"
