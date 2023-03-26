@@ -7,6 +7,9 @@ from ..backend.common import PapdlException,BenchmarkPreferences
 import logging
 import re
 from tabulate import tabulate
+from tqdm import tqdm
+import math
+import pickle
 
 
 class Layer():
@@ -133,6 +136,7 @@ class Configurer():
     
     def tabulated_print(self,configuration:Configuration):
         slice_blocks:List[SliceBlock]  = configuration["blocks"]
+        print(slice_blocks)
         
         table = []
         table.append(["Slice Indices","Device","Intermediary Memory Usage (MB)"])
@@ -223,85 +227,109 @@ class Configurer():
                 if model == node.model and device != node.device:
                     return False
 
-        node: Configurer.DecisionNode
+        node:Configurer.DecisionNode
         for node in path:
-            for model, device in constraints["layer_must_not_be_in_device"].items(
-            ):
-                if model == node.model and device == node.device:
+            for model, device in constraints["layer_must_be_in_device"].items():
+                if model == node.model and device == node.deivce:
                     return False
                 
-        node: Configurer.DecisionNode
-        node_memory_usage:Dict[Worker,int] = {}
+        node:Configurer.DecisionNode
+        worker_memory_usage:Dict[Worker,int] = {}
         for node in path:
-            if node.device not in node_memory_usage.keys():
-                node_memory_usage[node.device] = 0
+            if node.device not in worker_memory_usage.keys():
+                worker_memory_usage[node.device] = 0
             if node.model is None:
                 continue
-            node_memory_usage[node.device]+=node.model.memory_usage
+            worker_memory_usage[node.device] += node.model.memory_usage
             
-            for worker,nmu in node_memory_usage.items():
-                if nmu > worker.free_memory * benchmark_pref["free_memory_multiplier"]:
+            for worker,memory_usage in worker_memory_usage.items():
+                if memory_usage > worker.free_memory * benchmark_pref["free_memory_multiplier"]:
                     return False
         return True
+    
+    def __jumps(path:List[DecisionNode]):
+        jump_count = 0
+        prev_device:Worker = path[0].device
+        n:Configurer.DecisionNode
+        for n in path[1:]:
+            if n.device != prev_device:
+                jump_count += 1
+                prev_device = n.device
+            
+        return jump_count
+            
+        
+    
+    def __free_memory_variance(path:List[DecisionNode]):
+        node:Configurer.DecisionNoe
+        worker_memory_usage:Dict[Worker,int] = {}
+        for node in path:
+            if node.device not in worker_memory_usage.keys():
+                worker_memory_usage[node.device] = 0
+            if node.model is None:
+                continue
+            worker_memory_usage[node.device] += node.model.memory_usage
+            
+        average = [memory_usage / worker.free_memory for worker, memory_usage in worker_memory_usage.items()]
+        
+        variance = sum([
+            (memory_usage / worker.free_memory - avg) 
+            for avg,(worker, memory_usage) 
+            in zip(
+                average, 
+                worker_memory_usage.items())
+        ]) / len(worker_memory_usage)
+        return variance
+        
+        
+            
+        
 
     def __find_shortest_loop(
         start_node: DecisionNode,
         constraints: SearchConstraints,
-        benchmark_pref: BenchmarkPreferences
+        benchmark_pref: BenchmarkPreferences,
+        depth:int,
+        width:int
     ) -> Union[OptimalPath, None]:
-        # visited = {start_node: [start_node]}
-        # queue = [(0,Configurer.Path(node=start_node, penalty=0))]
-        # while queue:
-        #     total_penalty, path = heapq.heappop(queue)
-        #     current_node = path.node
-        #     for child_path in current_node.paths:
-        #         child_node = child_path.node
-        #         if child_node not in visited:
-        #             new_path = visited[current_node] + [child_node]
-        #             if Configurer.__valid_path(
-        #                 path = new_path,
-        #                 constraints=constraints,
-        #                 benchmark_pref=benchmark_pref
-        #             ):
-        #                 visited[child_node] = new_path
-        #                 new_penalty = total_penalty + child_path.penalty
-        #                 heapq.heappush(queue, (new_penalty, Configurer.Path(node=child_node, penalty=new_penalty)))
-        #             elif child_node == start_node and len(visited[current_node]) > 1:
-        #                 return Configurer.OptimalPath(
-        #                     path = visited[current_node] + [start_node], penalty=child_path.penalty
-        #                 )
-        # return None
         visited = set()
-        queue = [(0, start_node, [], visited)]
-        while queue:
-            penalty:float
-            current_node:Configurer.DecisionNode
-            traversed_nodes:List[Configurer.DecisionNode]
-            visited:MutableSet
-            
-            penalty, current_node, traversed_nodes, visited = heapq.heappop(queue)
-            # print("PENALTY", penalty, "CURRENT_NODE", str(current_node), "TRAVERSED NODES", [str(n) for n in traversed_nodes], "VISITED NODES", [ str(n) for n in visited])
-            # print("="*20)
-            
-            if current_node in visited and current_node == start_node:
-                return Configurer.OptimalPath(path=traversed_nodes,penalty=penalty)
+        queue = [(0, 0, start_node, [], visited)]
+        frontier_depth = 1
+        with tqdm(total=depth + 2) as pbar:
+            while queue:
+                
+                _, penalty, current_node, traversed_nodes, visited = heapq.heappop(queue)
+                
+                if current_node in visited and current_node == start_node:
+                    pbar.update(1)
+                    return Configurer.OptimalPath(path=traversed_nodes,penalty=penalty)
 
-            if current_node not in visited:
-                visited.add(current_node)
-                traversed_nodes = traversed_nodes + [current_node]
+                if current_node not in visited:
+                    visited.add(current_node)
+                    traversed_nodes = traversed_nodes + [current_node]
 
-                for p in current_node.paths:
-                    new_penalty = penalty + p.penalty
-                    new_path = traversed_nodes + [p.node]
-                    if Configurer.__valid_path(new_path,constraints,benchmark_pref) and new_penalty != float('inf'):
-                        heapq.heappush(queue, (new_penalty, p.node,traversed_nodes,visited.copy()))
+                    for p in current_node.paths:
+                        new_penalty = penalty + p.penalty
+                        new_path = traversed_nodes + [p.node]
+
+                        # f = new_penalty + Configurer.__free_memory_variance(new_path) + Configurer.__jumps(new_path)
+
+                        # f = new_penalty + 1 / p.node.device.free_memory + Configurer.__jumps(new_path)
+                        f = new_penalty
+
+                        if Configurer.__valid_path(new_path,constraints,benchmark_pref) and new_penalty != float('inf'):
+
+                            heapq.heappush(queue, (f,new_penalty, p.node,traversed_nodes,visited.copy()))
+                        if len(new_path) > frontier_depth:
+                            pbar.update(1)
+                            frontier_depth = len(new_path)
         return None
 
     def __calculate_performance_penalty(
             benchmark_result: Dict,
             destination: Worker,
             model: Layer) -> float:
-        return benchmark_result[destination.name]["model_performance"][model.name]["benchmark_time"]
+        return benchmark_result[destination.name]["model_performance"][model.name]["benchmark_time"] / 1_000_000
 
     def __calculate_network_penalty(
         benchmark_result: Dict,
@@ -428,8 +456,16 @@ class Configurer():
 
     def __fetch_model_from_nodes(nodes:List[DecisionNode],models:List[keras.models.Model])->List[keras.models.Model]:
         result:List[keras.models.Model] = []
+        # jprint([
+        # j    n.model.name 
+        # j    for n in nodes 
+        # j    if (n.model is not None)
+        # j    else None])
+        # print([m.name for m in models])
+        print([n.model.name if n.model is not None else None for n in nodes],flush=True)
+        print([model.name if model is not None else None for model in models],flush=True)
         for n in nodes:
-            search = [m for m in models if m.name == n.model.name]
+            search = [m for m in models if n.model is not None and m.name == n.model.name]
             if len(search) != 1:
                 raise PapdlException("Model names in benchmark.json does not match model names for the ones used for benchmarking. Rerun benchmarking process...")
             result.append(search[0])
@@ -472,11 +508,11 @@ class Configurer():
         if len(slices) == 0:
             return [
                 SliceBlock(
-                    layers=[n.model for n in op.path],
+                    layers=[n.model for n in op.path if n.model is not None],
                     slice_index=(0, len(op.path)),
                     device=op.path[0].device,
                     model=Configurer.__merge_models(
-                        Configurer.__fetch_model_from_nodes(op.path)
+                        Configurer.__fetch_model_from_nodes([n for n in op.path if n.model is not None],models)
                     )
                 )
             ]
@@ -532,18 +568,32 @@ class Configurer():
         )
 
         self.logger.info(f"Searching path with benchmark preferences: {benchmark_pref} and search preferences: {search_constraints}")
+        depth = len(models)
+        width = len(devices)
+        
         shortest_loop = Configurer.__find_shortest_loop(
             start_node=head,
             constraints=search_constraints,
-            benchmark_pref=benchmark_pref
+            benchmark_pref=benchmark_pref,
+            depth=depth,
+            width=width
         )
+        with open("shortest_loop_cache.pickle", "wb+") as f:
+            pickle.dump(shortest_loop,f)
+        
+        # shortest_loop = None
+        
+        # with open("shortest_loop_cache.pickle","rb") as f:
+        #     shortest_loop = pickle.load(f)
+        
         if shortest_loop is None:
             self.logger.error("No path found with the provided constraints")
             exit(1)
 
+        # print([f"model:{n.model} device:{n.device}" for n in shortest_loop.path])
         blocks = Configurer.__generate_blocks(shortest_loop,model_list)
 
-        print([b.device.name for b in blocks])
+        # print([b.device.name for b in blocks])
         
         input_shape = blocks[0].model.input_shape[1:]
 

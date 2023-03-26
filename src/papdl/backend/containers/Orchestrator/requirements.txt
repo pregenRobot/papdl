@@ -7,3 +7,4 @@ sanic
 aiohttp
 uproot
 asyncstdlib
+lz4

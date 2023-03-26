@@ -28,6 +28,7 @@ async def forward(websocket):
     i = 0
     async for data in websocket:
         deserialize_time = 0
+        ready_time = 0
         if i%4== 0:
             begin = time_ns()
             input_buff = io.BytesIO()
@@ -38,6 +39,7 @@ async def forward(websocket):
             array = result["value"]
             end = time_ns()
             deserialize_time = end - begin
+            ready_time = end
         elif i%4 == 1:
             begin = time_ns()
             input_buff = io.BytesIO()
@@ -47,6 +49,7 @@ async def forward(websocket):
             data = np.load(input_buff)
             end = time_ns()
             deserialize_time = end - begin
+            ready_time = end
         elif i%4 == 2:
             begin = time_ns()
             input_buff = io.BytesIO()
@@ -57,7 +60,16 @@ async def forward(websocket):
             data = uproot_stream["data"]["array"].array(library="np")
             end = time_ns()
             deserialize_time = end - begin
+            ready_time = end
         elif i%4 == 3:
+            # begin = time_ns()
+            # decompressed = lz4.frame.decompress(data)
+            # requestId = decompressed[:36].decode("utf-8")
+            # data = np.frombuffer(decompressed[36:])
+            # print(data.shape,flush=True)
+            # end = time_ns()
+            # deserialize_time = end - begin
+            # ready_time = end
             begin = time_ns()
             decompressed_buff = io.BytesIO()
             decompressed_buff.write(lz4.frame.decompress(data))
@@ -66,9 +78,10 @@ async def forward(websocket):
             data = np.load(decompressed_buff)
             end = time_ns()
             deserialize_time = end - begin
+            ready_time = end
         
         i+=1
-        await websocket.send(str(deserialize_time))
+        await websocket.send(str(deserialize_time) + "," + str(ready_time))
             
             
             
@@ -90,10 +103,11 @@ def prepare_npfull_lz4(data,requestId):
     # compressed_bytes.write(compressed)
     # compressed_bytes.seek(0)
     # return buff
-    compressed_bytes_io = io.BytesIO()
-    compressed_bytes_io.write(compressed_data)
-    compressed_bytes_io.seek(0)
-    return compressed_bytes_io
+    # compressed_bytes_io = io.BytesIO()
+    # compressed_bytes_io.write(compressed_data)
+    # compressed_bytes_io.seek(0)
+    # return compressed_bytes_io
+    return compressed_data
     
 
 def prepare_nprecarray(data,requestId):
@@ -129,14 +143,13 @@ async def input():
                 # random_input = np.random.random_sample((batch_size,224,224,3)).astype()
                 index = randint(0,49_000)
                 random_input = cifar10data[0][0][index:index+batch_size].astype(float)
-                print(random_input.dtype,flush=True)
 
                 requestId = str(uuid.uuid4())
                 
                 begin = time_ns()
                 npfull_output_buff = prepare_npfull(deepcopy(random_input),requestId)
                 end = time_ns()
-                np_full_serialize_time =  end - begin
+                npfull_serialize_time =  end - begin
 
                 begin = time_ns()
                 uproot_buff = prepare_uproot(deepcopy(random_input),requestId)
@@ -159,39 +172,77 @@ async def input():
                 end = time_ns()
                 nprecarray_send_time = end - begin
                 nprecarray_size = asizeof(nprecarray_output_buff)
-                nprecarray_deserialize_time = await websocket.recv()
+                nprecarray_deserialize_time,server_ready_time = tuple((await websocket.recv()).split(","))
+                nprecarry_ready_time = int(server_ready_time) - begin + nprecarray_serialize_time
                 
                 begin = time_ns()
                 await websocket.send(npfull_output_buff)
                 end = time_ns()
                 npfull_send_time = end - begin
-                npfull_deserialize_time = await websocket.recv()
-                np_full_size = asizeof(npfull_output_buff)
+                npfull_deserialize_time,server_ready_time = tuple((await websocket.recv()).split(","))
+                npfull_size = asizeof(npfull_output_buff)
+                npfull_ready_time = int(server_ready_time) - begin + npfull_serialize_time
                 
                 begin = time_ns()
                 await websocket.send(uproot_buff)
                 end = time_ns()
                 uproot_send_time = end - begin
-                uproot_deserialize_time = await websocket.recv()
+                uproot_deserialize_time,server_ready_time = tuple((await websocket.recv()).split(","))
                 uproot_size  = asizeof(uproot_buff)
+                uproot_ready_time = int(server_ready_time) - begin + uproot_serialize_time
                 
                 begin = time_ns()
                 await websocket.send(npfull_lz4_output_buff)
                 end = time_ns()
                 npfull_lz4_send_time = end - begin
-                npfull_lz4_deserialize_time = await websocket.recv()
+                npfull_lz4_deserialize_time,server_ready_time = tuple((await websocket.recv()).split(","))
                 npfull_lz4_size = asizeof(npfull_lz4_output_buff)
+                npfull_lz4_ready_time = int(server_ready_time) - begin + npfull_lz4_serialize_time
                 
-                rows.append(["nprecarray", batch_size, nprecarray_serialize_time, int(nprecarray_deserialize_time), nprecarray_send_time, nprecarray_size])
-                rows.append(["uproot", batch_size, uproot_serialize_time, int(uproot_deserialize_time), uproot_send_time, uproot_size ])
-                rows.append(["npfull", batch_size, np_full_serialize_time, int(npfull_deserialize_time),npfull_send_time,np_full_size ])
-                rows.append(["npfull_lz4", batch_size, npfull_lz4_serialize_time, int(npfull_lz4_deserialize_time),npfull_lz4_send_time,npfull_lz4_size ])
-                print(f"Done batch_size: {batch_size} repeat: {repeat}",flush=True)
+                rows.append(
+                    ["nprecarray", 
+                     batch_size, 
+                     nprecarray_serialize_time, 
+                     int(nprecarray_deserialize_time), 
+                     nprecarray_send_time, 
+                     nprecarry_ready_time, 
+                     nprecarray_size]
+                )
+                rows.append(
+                    ["uproot", 
+                     batch_size, 
+                     uproot_serialize_time, 
+                     int(uproot_deserialize_time), 
+                     uproot_send_time, 
+                     uproot_ready_time, 
+                     uproot_size ]
+                )
+                rows.append(
+                    ["npfull", 
+                     batch_size, 
+                     npfull_serialize_time, 
+                     int(npfull_deserialize_time),
+                     npfull_send_time,
+                     npfull_ready_time, 
+                     npfull_size ]
+                )
+                rows.append(
+                    ["npfull_lz4", 
+                     batch_size, 
+                     npfull_lz4_serialize_time, 
+                     int(npfull_lz4_deserialize_time),
+                     npfull_lz4_send_time, 
+                     npfull_lz4_ready_time, 
+                     npfull_lz4_size ]
+                )
+            print(f"Done batch_size: {batch_size}",flush=True)
 
-        result = pd.DataFrame(rows,columns=["method", "batch_size", "serialize_time","deserialize_time", "send_time", "payload_size"])
+        result = pd.DataFrame(
+            rows,
+            columns=["method", "batch_size", "serialize_time","deserialize_time", "send_time", "ready_time", "payload_size"]
+        )
         with open("memory_test.csv","w+") as f:
             result.to_csv(f)
-        print(result)
         
         
         

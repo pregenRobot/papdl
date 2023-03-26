@@ -22,6 +22,7 @@ import aiohttp
 import uproot
 from time import time_ns
 import asyncstdlib as asynclib
+import lz4
 
 from websockets.legacy.client import Connect
 
@@ -80,14 +81,13 @@ async def record_response(request:Request,ws:Websocket):
     async for data in ws:
         requestId:str
         try:
-            buff = io.BytesIO()
-            buff.write(data)
-            buff.seek(0)
-            uproot_buff = uproot.open(buff)
-            requestId = str(uproot_buff["requestId"])
-            output = uproot_buff["data"]["array"].array(library="np")
+            decompressed_buff = io.BytesIO
+            decompressed_buff.write(lz4.frame.decompress(data))
+            decompressed_buff.seek(0)
+            requestId = decompressed_buff.read(36).decode("utf-8")
+            data = np.load(decompressed_buff)
             async with app.ctx.rrm_lock:
-                app.ctx.request_response_map[requestId].set_result(output)
+                app.ctx.request_response_map[requestId].set_result(data)
         except Exception as e:
             logger.error(traceback.format_exc())
             async with app.ctx.rrm_lock:
@@ -98,81 +98,36 @@ async def make_prediction(request:Request):
     try:
         request_buff = io.BytesIO()
         request_buff.write(request.body)
+        request_buff.write(request.body)
         request_buff.seek(0)
         array:np.ndarray = np.load(request_buff)
         expected_input_dims = app.ctx.input_dims
-
+        
         if len(expected_input_dims) + 1 != len(array.shape) or array.shape[1:] != expected_input_dims:
             raise ValueError()
         
         send_buff = io.BytesIO()
-        uproot_buff = uproot.recreate(send_buff)
         request_id = str(uuid.uuid4())
-        uproot_buff["requestId"] = request_id
-        uproot_buff["data"] = {"array":array}
+        send_buff.write(bytes(request_id,"utf-8"))
+        send_buff.write(request.body)
         send_buff.seek(0)
+        compressed_buff = lz4.frame.compress(send_buff.read())
+        
         loop = asyncio.get_running_loop()
         response_future = loop.create_future()
         async with app.ctx.rrm_lock:
             app.ctx.request_response_map[request_id] = response_future
-        await app.ctx.forward_connection.send(uproot_buff)
+        await app.ctx.forward_connection.send(compressed_buff)
         await response_future
-        
         response_buff = io.BytesIO()
-        np.save(response_buff,response_future.result())
+        np.save(response_buff, response_future.result())
         response_buff.seek(0)
-        return response.raw(body=response_buff,status=HTTPStatus.OK)
+        return response.raw(body=response_buff, status = HTTPStatus.OK)
     except ValueError as e:
         return response.raw(body="Input dimensions does not match the model",status=HTTPStatus.BAD_REQUEST)
     except Exception as e:
         return response.json(body=e,status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
-@app.post("/benchmark")
-async def benchmark_performance(request:Request):
-    try:
-        input_shape = app.ctx.input_dims
-        batch_size = int(request.json["batch_size"])
-        iterations = int(request.json["iterations"])
-
-        dimensions = (batch_size,) + input_shape
-        
-        loop = asyncio.get_running_loop()
-        benchmark_results = [(
-            str(uuid.uuid4()), 
-            np.random.random_sample(dimensions),
-            loop.create_future()
-            ) for i in range(iterations)]
-
-        req_id:str
-        sample:np.ndarray
-        duration_fut:asyncio.Future
-        async for i,(req_id, sample, duration_fut) in asynclib.enumerate(benchmark_results):
-            buff = io.BytesIO()
-            uproot_buff = uproot.recreate(buff)
-            uproot_buff["requestId"] = req_id
-            uproot_buff["data"] = {"array":sample}
-            buff.seek(0)
-            _loop = asyncio.get_running_loop()
-            response_future = _loop.create_future()
-            async with app.ctx.rrm_lock:
-                app.ctx.request_response_map[req_id] = response_future
-
-            begin = time_ns()
-            await app.ctx.forward_connection.send(buff)
-            await response_future
-            end = time_ns()
-            duration_fut.set_result(end - begin)
-        
-        durations_completed = []
-        for br in benchmark_results:
-            await br[2]
-            durations_completed.append(br[2].result())
-
-        return response.json(body=durations_completed,status=HTTPStatus.OK)
-    except KeyError as e:
-        return response.text("Bad request. Missing batch_size or iterations arguments",status=HTTPStatus.BAD_REQUEST)
-    except Exception as e:
-        return response.text(body=traceback.format_exc(),status=HTTPStatus.INTERNAL_SERVER_ERROR)
     
 @app.get("/connect")
 async def connect_to_forward(request:Request):

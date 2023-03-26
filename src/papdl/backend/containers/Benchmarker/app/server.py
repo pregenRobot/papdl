@@ -1,4 +1,4 @@
-from time import time
+from time import time_ns
 import numpy as np
 from getpass import getuser
 from glob import glob
@@ -27,16 +27,8 @@ class Config(TypedDict):
 
 config: Config
 
-INPUT_MULTIPLIER = 10
-# def load_benchmark_configs()->Config:
-#     # TODO: read from environment variables
-#     global config
-#     config = Config(
-#         model_test_batch_size=100,
-#         model_test_number_of_repeats=100,
-#         bandwidth_test_duration_sec=1,
-#         latency_test_count=1000,
-#         free_memory_multiplier = 0.5)
+INPUT_MULTIPLIER = 4
+
 
 def load_benchmark_configs()->Config:
     global config
@@ -47,7 +39,6 @@ def load_benchmark_configs()->Config:
         latency_test_count=int(environ.get("LATENCY_TEST_COUNT")),
         free_memory_multiplier=float(environ.get("FREE_MEMORY_MULTIPLIER"))
     )
-    
 
 def isDebug()->bool:
     return int(environ.get("DEBUG")) == 1
@@ -85,10 +76,10 @@ def memory_usage(model, *, batch_size: int):
     )
 
     total_memory = (
-        batch_size * shapes_mem_count * INPUT_MULTIPLIER
+        batch_size * shapes_mem_count
         + internal_model_mem_count
-        # + trainable_count
-        # + non_trainable_count
+        + trainable_count
+        + non_trainable_count
     )
     return total_memory
 
@@ -132,22 +123,21 @@ def benchmark_network(papdl_workers:List[str]) -> Dict:
         print(result[ip],flush=True)
         del client
     return result
-
+    
 def single_model_benchmark(args:Dict):
     mp = args["mp"]
     fmm = args["fmm"]
     mtbs = args["mtbs"]
     
-
     free_memory = get_available_memory()
     model:tf.keras.Model = load_model(mp)
-    model_memory_usage = memory_usage(model=model,batch_size=config["model_test_batch_size"])
+    model_memory_usage = memory_usage(model=model,batch_size=mtbs)
     model_name = model.name
     dimensions = (mtbs,) + model.input_shape[1:]
-    print(f"Loaded model : {model_name} from path: {mp} with input_dims: {dimensions}",flush=True)
+    print(f"Loaded model: {model_name} from path: {mp} with input_dims: {dimensions}",flush=True)
     
     if(model_memory_usage > free_memory * fmm):
-        print(f"Skipping benchmarking as memory threshold {model_memory_usage} has been met {free_memory}.",flush=True)
+        print(f"Skipping benchmarking as memory threshold {model_memory_usage} has met {free_memory}.",flush=True)
         result = {}
         result["benchmark_size"] = float("inf")
         result["benchmark_time"] = float("inf")
@@ -157,32 +147,28 @@ def single_model_benchmark(args:Dict):
         tf.compat.v1.reset_default_graph()
         gc.collect()
         return result
-
-    print(f"Running benchmarking as memory threshold {free_memory} has not been met for model {model_memory_usage}")
+        
+    print(f"Running benchmarking as memory threshold {free_memory} has not been met for mode {model_memory_usage}")
     sample_input = np.random.random_sample(dimensions)
-    start = time()
+    start = time_ns()
     for i in range(mtbs):
         tmp_out = model(sample_input,training=False)
         del tmp_out
         gc.collect()
-    end = time()
-    
-    output:np.array = model(sample_input,training = False)
-    # file_name = f"fsize_{str(uuid.uuid4())}"
-    # np.save(file_name,"output")
-    
-    # size = stat(f"{file_name}.npy").st_size
+    end = time_ns()
+    output:np.ndarray = model(sample_input,training=False)
     size = asizeof(output)
     result = {}
     result["benchmark_size"] = size
     result["benchmark_time"] = (end - start) / mtbs
     result["benchmark_memory_usage"] = model_memory_usage
     result["model_name"] = model_name
-
+    
     del model
     del output
     del sample_input
     tf.compat.v1.reset_default_graph()
+    gc.collect()
     return result
     
 

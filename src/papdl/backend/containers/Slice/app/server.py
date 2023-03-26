@@ -3,6 +3,7 @@ import sys
 from time import sleep
 import os
 import json
+import lz4
 
 
 from websockets.client import connect as ws_connect
@@ -66,20 +67,19 @@ async def forward(websocket):
     async for data in websocket:
         try:
             input_buff = io.BytesIO()
-            input_buff.write(data)
+            input_buff.write(lz4.frame.decompress(data))
             input_buff.seek(0)
 
-            input_uproot_buff = uproot.open(input_buff)
-            model_input = input_uproot_buff["data"]["array"].array(library="np")
-            model_output = model.predict(model_input)
-            
-            output_buff = io.BytesIO()
-            output_uproot_buff = uproot.recreate(output_buff)
-            output_uproot_buff["data"] = {"array":model_output}
-            output_uproot_buff["requestId"] = str(input_uproot_buff["requestId"])
+            requestId = input_buff.read(36).decode("utf-8")
+            model_output = model.predict(np.load(input_buff))
 
-            output_buff.seek(0)
-            await forward_connection.send(output_buff)
+            output_buff = io.BytesIO()
+            output_buff.write(bytes(requestId,"utf-8"))
+            np.save(output_buff, model_output)
+
+            compressed_buff = io.BytesIO()
+            compressed_buff.write(lz4.frame.compress(output_buff.read()))
+            await forward_connection.send(compressed_buff)
             gc.collect()
         except:
             logger.error("Caught Exception! Dropping input...")
