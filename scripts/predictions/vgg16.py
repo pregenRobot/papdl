@@ -6,7 +6,6 @@ import numpy as np
 import io
 import sys
 import matplotlib.pyplot as plt
-
     
 
 def benchmark():
@@ -20,8 +19,8 @@ def benchmark():
     for r in range(REPEAT):
         index = randint(0,49_000)
         random_input = cifar10dataset[0][0][index:index+BATCH_SIZE]
-        plt.imshow(random_input[0])
-        print(model.predict(random_input))
+        plt.imshow(random_input[0],interpolation="nearest")
+        # print(vgg16.decode_predictions(model.predict(random_input)))
         
         
 if __name__ == "__main__":
