@@ -3,7 +3,7 @@ from typing import NamedTuple, List, Dict, TypedDict, Union, Tuple, MutableSet
 from json import loads, dumps
 import heapq
 import keras
-from ..backend.common import PapdlException,BenchmarkPreferences
+from ..backend.common import PapdlException, BenchmarkPreferences
 import logging
 import re
 from tabulate import tabulate
@@ -13,9 +13,11 @@ import pickle
 
 
 class Layer():
-    def __init__(self, name,memory_usage):
+    def __init__(self, name, model_memory_usage, hidden_memory_usage, io_memory_usage):
         self.name = name
-        self.memory_usage = memory_usage
+        self.model_memory_usage = model_memory_usage
+        self.hidden_memory_usage = hidden_memory_usage
+        self.io_memory_usage = io_memory_usage
 
     def __hash__(self):
         return hash(self.name)
@@ -32,7 +34,7 @@ class Layer():
 
 
 class Worker():
-    def __init__(self, name,free_memory):
+    def __init__(self, name, free_memory):
         self.name = name
         self.free_memory = free_memory
 
@@ -51,12 +53,14 @@ class Worker():
 
 
 class SearchConstraints():
-    def __init__(self,layer_must_be_in_device:Dict[Layer,Worker],layer_must_not_be_in_device:Dict[Layer,Worker]):
-        self.layer_must_be_in_device:Dict[Layer,Worker] = layer_must_be_in_device
-        self.layer_must_not_be_in_device:Dict[Layer,Worker] = layer_must_not_be_in_device
-    
+    def __init__(self, layer_must_be_in_device: Dict[Layer, Worker], layer_must_not_be_in_device: Dict[Layer, Worker]):
+        self.layer_must_be_in_device: Dict[Layer,
+                                           Worker] = layer_must_be_in_device
+        self.layer_must_not_be_in_device: Dict[Layer,
+                                               Worker] = layer_must_not_be_in_device
+
     @staticmethod
-    def parse_match(match:str)->Dict[str,List[str]]:
+    def parse_match(match: str) -> Dict[str, List[str]]:
         result = {}
         if match is not None:
             conditions = match.split(",")
@@ -66,42 +70,48 @@ class SearchConstraints():
                 val = split_key_val[1].strip()
                 result[key] = val
         return result
-    
-    def __getitem__(self,item):
+
+    def __getitem__(self, item):
         if item == "layer_must_be_in_device":
             return self.layer_must_be_in_device
         if item == "layer_must_not_be_in_device":
             return self.layer_must_not_be_in_device
         raise KeyError
-    
+
     def __str__(self):
         return f"must={self.layer_must_be_in_device},mustnot={self.layer_must_not_be_in_device}"
-    
+
     @staticmethod
-    def coarsce_type(dict_to_coersce:Dict[str,str])->Dict[Layer,Worker]:
-        result:Dict[Layer,Worker] = {}
-        for layer_str,worker_str in dict_to_coersce.items():
-            result[Layer(name=layer_str,memory_usage=None)] = Worker(name=worker_str,free_memory=None)
+    def coarsce_type(dict_to_coersce: Dict[str, str]) -> Dict[Layer, Worker]:
+        result: Dict[Layer, Worker] = {}
+        for layer_str, worker_str in dict_to_coersce.items():
+            result[Layer(name=layer_str, memory_usage=None)] = Worker(
+                name=worker_str, free_memory=None)
         return result
-    
+
     @staticmethod
-    def parse_from_str(input_str:str):
+    def parse_from_str(input_str: str):
         try:
-            must_str = re.search(r"(?<=must=\{)(\w|\s|:|,)+(?=\})",input_str)
-            mustnot_str = re.search(r"(?<=mustnot=\{)(\w|\s|:|,)+(?=\})",input_str)
-            
-            layer_must_be_in_device:Dict[Layer,Worker] = {}
-            if(must_str is not None):
-                layer_must_be_in_device_str_dict = SearchConstraints.parse_match(must_str.group())
-                layer_must_be_in_device = SearchConstraints.coarsce_type(layer_must_be_in_device_str_dict)
-            
-            layer_must_not_be_in_device:Dict[Layer,Worker] = {}
-            if(mustnot_str is not None):
-                layer_must_not_be_in_device_str_dict = SearchConstraints.parse_match(mustnot_str.group())
-                layer_must_not_be_in_device = SearchConstraints.coarsce_type(layer_must_not_be_in_device_str_dict)
-            
-            return SearchConstraints(layer_must_be_in_device=layer_must_be_in_device,layer_must_not_be_in_device=layer_must_not_be_in_device)
-                
+            must_str = re.search(r"(?<=must=\{)(\w|\s|:|,)+(?=\})", input_str)
+            mustnot_str = re.search(
+                r"(?<=mustnot=\{)(\w|\s|:|,)+(?=\})", input_str)
+
+            layer_must_be_in_device: Dict[Layer, Worker] = {}
+            if (must_str is not None):
+                layer_must_be_in_device_str_dict = SearchConstraints.parse_match(
+                    must_str.group())
+                layer_must_be_in_device = SearchConstraints.coarsce_type(
+                    layer_must_be_in_device_str_dict)
+
+            layer_must_not_be_in_device: Dict[Layer, Worker] = {}
+            if (mustnot_str is not None):
+                layer_must_not_be_in_device_str_dict = SearchConstraints.parse_match(
+                    mustnot_str.group())
+                layer_must_not_be_in_device = SearchConstraints.coarsce_type(
+                    layer_must_not_be_in_device_str_dict)
+
+            return SearchConstraints(layer_must_be_in_device=layer_must_be_in_device, layer_must_not_be_in_device=layer_must_not_be_in_device)
+
         except Exception as e:
             raise ValueError
 
@@ -110,7 +120,7 @@ class SliceBlock(NamedTuple):
     layers: List[Layer]
     slice_index: Tuple[int, int]
     device: Worker
-    model:keras.models.Model
+    model: keras.models.Model
 
 
 class Configuration(TypedDict):
@@ -118,32 +128,47 @@ class Configuration(TypedDict):
     blocks: List[SliceBlock]
     devices: List[Worker]
     constraints: SearchConstraints
-    source_device:Worker
+    source_device: Worker
     input_shape: Tuple[int]
-    benchmark_preferences:BenchmarkPreferences
-    penalty:float
-    
+    benchmark_preferences: BenchmarkPreferences
+    penalty: float
+
+
 class ConfigurationPreferences(TypedDict):
     logger: logging.Logger
-    search_constraints:SearchConstraints
-
+    search_constraints: SearchConstraints
 
 
 class Configurer():
 
     def __init__(self, logger: Logger):
         self.logger = logger
-    
-    def tabulated_print(self,configuration:Configuration):
-        slice_blocks:List[SliceBlock]  = configuration["blocks"]
+
+    def tabulated_print(self, configuration: Configuration):
+        slice_blocks: List[SliceBlock] = configuration["blocks"]
         print(slice_blocks)
-        
+
         table = []
-        table.append(["Slice Indices","Device","Intermediary Memory Usage (MB)"])
-        sb:SliceBlock
+        table.append(["Slice Indices", "Device", "Model Memory Usage (MB)",
+                     "Hidden Memory Usage (MB)", "IO Memory Usage (MB)"])
+        sb: SliceBlock
         for sb in slice_blocks:
-            table.append([str(sb.slice_index),sb.device.name,sum([l.memory_usage/1000/1000 for l in sb.layers])])
-        self.logger.info(tabulate(table,headers="firstrow",tablefmt="outline"))
+            table.append(
+                [str(sb.slice_index),
+                 sb.device.name,
+                 sum([
+                     l.model_memory_usage/1_000_000
+                     for l in sb.layers
+                 ]),
+                 sum([
+                     l.hidden_memory_usage/1_000_000
+                     for l in sb.layers
+                 ]),
+                 sb.layers[0].io_memory_usage/1_000_000
+                 ]
+            )
+        self.logger.info(
+            tabulate(table, headers="firstrow", tablefmt="outline"))
         self.logger.info(f"PENALTY: {configuration['penalty']}")
 
     class DecisionNode():
@@ -200,16 +225,15 @@ class Configurer():
             return f"<NODE model:{model_name} device:{self.device.name}>"
 
     class Path():
-        def __init__(self,node:"Configurer.DecisionNode",penalty:float):
+        def __init__(self, node: "Configurer.DecisionNode", penalty: float):
             self.node = node
             self.penalty = penalty
-        
-        def __eq__ (self, other:"Configurer.Path"):
-            return isinstance(other,Configurer.Path) and other.penalty == self.penalty
-        
-        def __lt__ (self, other:"Configurer.Path"):
-            return isinstance(other,Configurer.Path) and other.penalty < self.penalty
-    
+
+        def __eq__(self, other: "Configurer.Path"):
+            return isinstance(other, Configurer.Path) and other.penalty == self.penalty
+
+        def __lt__(self, other: "Configurer.Path"):
+            return isinstance(other, Configurer.Path) and other.penalty < self.penalty
 
     class OptimalPath(NamedTuple):
         path: List["Configurer.DecisionNode"]
@@ -219,7 +243,7 @@ class Configurer():
         total_distance: float
         path: "Configurer.Path"
 
-    def __valid_path(path: List[DecisionNode], constraints: SearchConstraints,benchmark_pref:BenchmarkPreferences):
+    def __valid_path(path: List[DecisionNode], constraints: SearchConstraints, benchmark_pref: BenchmarkPreferences):
         node: Configurer.DecisionNode
         for node in path:
             for model, device in constraints["layer_must_be_in_device"].items(
@@ -227,82 +251,84 @@ class Configurer():
                 if model == node.model and device != node.device:
                     return False
 
-        node:Configurer.DecisionNode
+        node: Configurer.DecisionNode
         for node in path:
             for model, device in constraints["layer_must_be_in_device"].items():
                 if model == node.model and device == node.deivce:
                     return False
-                
-        node:Configurer.DecisionNode
-        worker_memory_usage:Dict[Worker,int] = {}
+
+        node: Configurer.DecisionNode
+        worker_memory_usage: Dict[Worker, int] = {}
+        prevNode = path[0]
         for node in path:
             if node.device not in worker_memory_usage.keys():
                 worker_memory_usage[node.device] = 0
             if node.model is None:
                 continue
-            worker_memory_usage[node.device] += node.model.memory_usage
-            
-            for worker,memory_usage in worker_memory_usage.items():
+            worker_memory_usage[node.device] += node.model.model_memory_usage + \
+                node.model.hidden_memory_usage
+
+            if node.device != prevNode:
+                worker_memory_usage[node.device] += node.model.io_memory_usage
+                prevNode = node.device
+
+            for worker, memory_usage in worker_memory_usage.items():
                 if memory_usage > worker.free_memory * benchmark_pref["free_memory_multiplier"]:
                     return False
         return True
-    
-    def __jumps(path:List[DecisionNode]):
+
+    def __jumps(path: List[DecisionNode]):
         jump_count = 0
-        prev_device:Worker = path[0].device
-        n:Configurer.DecisionNode
+        prev_device: Worker = path[0].device
+        n: Configurer.DecisionNode
         for n in path[1:]:
             if n.device != prev_device:
                 jump_count += 1
                 prev_device = n.device
-            
+
         return jump_count
-            
-        
-    
-    def __free_memory_variance(path:List[DecisionNode]):
-        node:Configurer.DecisionNoe
-        worker_memory_usage:Dict[Worker,int] = {}
+
+    def __free_memory_variance(path: List[DecisionNode]):
+        node: Configurer.DecisionNoe
+        worker_memory_usage: Dict[Worker, int] = {}
         for node in path:
             if node.device not in worker_memory_usage.keys():
                 worker_memory_usage[node.device] = 0
             if node.model is None:
                 continue
             worker_memory_usage[node.device] += node.model.memory_usage
-            
-        average = [memory_usage / worker.free_memory for worker, memory_usage in worker_memory_usage.items()]
-        
+
+        average = [memory_usage / worker.free_memory for worker,
+                   memory_usage in worker_memory_usage.items()]
+
         variance = sum([
-            (memory_usage / worker.free_memory - avg) 
-            for avg,(worker, memory_usage) 
+            (memory_usage / worker.free_memory - avg)
+            for avg, (worker, memory_usage)
             in zip(
-                average, 
+                average,
                 worker_memory_usage.items())
         ]) / len(worker_memory_usage)
         return variance
-        
-        
-            
-        
 
     def __find_shortest_loop(
         start_node: DecisionNode,
         constraints: SearchConstraints,
         benchmark_pref: BenchmarkPreferences,
-        depth:int,
-        width:int
+        depth: int,
+        width: int
     ) -> Union[OptimalPath, None]:
         visited = set()
         queue = [(0, 0, start_node, [], visited)]
         frontier_depth = 1
         with tqdm(total=depth + 2) as pbar:
             while queue:
-                
-                _, penalty, current_node, traversed_nodes, visited = heapq.heappop(queue)
-                
+
+                _, penalty, current_node, traversed_nodes, visited = heapq.heappop(
+                    queue)
+
                 if current_node in visited and current_node == start_node:
                     pbar.update(1)
-                    return Configurer.OptimalPath(path=traversed_nodes,penalty=penalty)
+                    return Configurer.OptimalPath(path=traversed_nodes, penalty=penalty)
 
                 if current_node not in visited:
                     visited.add(current_node)
@@ -317,9 +343,10 @@ class Configurer():
                         # f = new_penalty + 1 / p.node.device.free_memory + Configurer.__jumps(new_path)
                         f = new_penalty
 
-                        if Configurer.__valid_path(new_path,constraints,benchmark_pref) and new_penalty != float('inf'):
+                        if Configurer.__valid_path(new_path, constraints, benchmark_pref) and new_penalty != float('inf'):
 
-                            heapq.heappush(queue, (f,new_penalty, p.node,traversed_nodes,visited.copy()))
+                            heapq.heappush(
+                                queue, (f, new_penalty, p.node, traversed_nodes, visited.copy()))
                         if len(new_path) > frontier_depth:
                             pbar.update(1)
                             frontier_depth = len(new_path)
@@ -454,31 +481,32 @@ class Configurer():
                     input_size=input_size
                 )
 
-    def __fetch_model_from_nodes(nodes:List[DecisionNode],models:List[keras.models.Model])->List[keras.models.Model]:
-        result:List[keras.models.Model] = []
+    def __fetch_model_from_nodes(nodes: List[DecisionNode], models: List[keras.models.Model]) -> List[keras.models.Model]:
+        result: List[keras.models.Model] = []
         # jprint([
-        # j    n.model.name 
-        # j    for n in nodes 
+        # j    n.model.name
+        # j    for n in nodes
         # j    if (n.model is not None)
         # j    else None])
         # print([m.name for m in models])
-        print([n.model.name if n.model is not None else None for n in nodes],flush=True)
-        print([model.name if model is not None else None for model in models],flush=True)
+        print([n.model.name if n.model is not None else None for n in nodes], flush=True)
+        print([model.name if model is not None else None for model in models], flush=True)
         for n in nodes:
-            search = [m for m in models if n.model is not None and m.name == n.model.name]
+            search = [
+                m for m in models if n.model is not None and m.name == n.model.name]
             if len(search) != 1:
-                raise PapdlException("Model names in benchmark.json does not match model names for the ones used for benchmarking. Rerun benchmarking process...")
+                raise PapdlException(
+                    "Model names in benchmark.json does not match model names for the ones used for benchmarking. Rerun benchmarking process...")
             result.append(search[0])
         return result
-    
-    def __merge_models(models:List[keras.models.Model])->keras.models.Model:
+
+    def __merge_models(models: List[keras.models.Model]) -> keras.models.Model:
         result_model = keras.models.Sequential()
         for model in models:
             result_model.add(model)
         result_model.build()
         return result_model
-        
-        
+
     def __generate_blocks(
         op: OptimalPath,
         models: List[keras.models.Model]
@@ -487,7 +515,7 @@ class Configurer():
         r = 2
         slices: List[SliceBlock] = []
         while r < len(op.path):
-            
+
             if op.path[r].device != op.path[l].device:
                 nodes_slice = op.path[l:r]
                 s = SliceBlock(
@@ -498,7 +526,8 @@ class Configurer():
                     slice_index=(l, r),
                     device=op.path[l].device,
                     model=Configurer.__merge_models(
-                        Configurer.__fetch_model_from_nodes(nodes_slice,models)
+                        Configurer.__fetch_model_from_nodes(
+                            nodes_slice, models)
                     )
                 )
                 slices.append(s)
@@ -512,7 +541,8 @@ class Configurer():
                     slice_index=(0, len(op.path)),
                     device=op.path[0].device,
                     model=Configurer.__merge_models(
-                        Configurer.__fetch_model_from_nodes([n for n in op.path if n.model is not None],models)
+                        Configurer.__fetch_model_from_nodes(
+                            [n for n in op.path if n.model is not None], models)
                     )
                 )
             ]
@@ -525,30 +555,40 @@ class Configurer():
         source_device: Union[Worker, str],
         input_size: int,
         search_constraints: SearchConstraints,
-        model_list:List[keras.models.Model],
-        benchmark_pref:BenchmarkPreferences
+        model_list: List[keras.models.Model],
+        benchmark_pref: BenchmarkPreferences
     ) -> Configuration:
         devices: List[Worker] = [
-            Worker(k,benchmark_result[k]["free_memory"]) for k in list(
+            Worker(k, benchmark_result[k]["free_memory"]) for k in list(
                 benchmark_result.keys())]
 
         sd: Worker = None
         if isinstance(source_device, Worker):
             sd = source_device
         if isinstance(source_device, str):
-            sd = Worker(name=source_device,free_memory=benchmark_result[source_device]["free_memory"])
+            sd = Worker(
+                name=source_device, free_memory=benchmark_result[source_device]["free_memory"])
 
         models: List[Layer] = []
-        def model_total_ordering(k:str):
+
+        def model_total_ordering(k: str):
             _split = k.split("_")
             if len(_split) == 1:
                 return 0
             else:
                 return int(_split[1])
-        sorted_models = sorted(list(benchmark_result[sd.name]["model_performance"].keys()),key=model_total_ordering)
+        sorted_models = sorted(list(
+            benchmark_result[sd.name]["model_performance"].keys()), key=model_total_ordering)
         for m_key in sorted_models:
             model_dict = benchmark_result[sd.name]["model_performance"][m_key]
-            models.append(Layer(name=m_key,memory_usage=model_dict["benchmark_memory_usage"]))
+            models.append(
+                Layer(
+                    name=m_key,
+                    model_memory_usage=model_dict["benchmark_model_memory_usage"],
+                    hidden_memory_usage=model_dict["benchmark_hidden_and_input_memory_usage"],
+                    io_memory_usage=model_dict["benchmark_input_memory_multiplier"]
+                )
+            )
 
         global visited_node_map
 
@@ -567,10 +607,11 @@ class Configurer():
             input_size=input_size
         )
 
-        self.logger.info(f"Searching path with benchmark preferences: {benchmark_pref} and search preferences: {search_constraints}")
+        self.logger.info(
+            f"Searching path with benchmark preferences: {benchmark_pref} and search preferences: {search_constraints}")
         depth = len(models)
         width = len(devices)
-        
+
         shortest_loop = Configurer.__find_shortest_loop(
             start_node=head,
             constraints=search_constraints,
@@ -579,22 +620,22 @@ class Configurer():
             width=width
         )
         with open("shortest_loop_cache.pickle", "wb+") as f:
-            pickle.dump(shortest_loop,f)
-        
+            pickle.dump(shortest_loop, f)
+
         # shortest_loop = None
-        
+
         # with open("shortest_loop_cache.pickle","rb") as f:
         #     shortest_loop = pickle.load(f)
-        
+
         if shortest_loop is None:
             self.logger.error("No path found with the provided constraints")
             exit(1)
 
         # print([f"model:{n.model} device:{n.device}" for n in shortest_loop.path])
-        blocks = Configurer.__generate_blocks(shortest_loop,model_list)
+        blocks = Configurer.__generate_blocks(shortest_loop, model_list)
 
         # print([b.device.name for b in blocks])
-        
+
         input_shape = blocks[0].model.input_shape[1:]
 
         config = Configuration(

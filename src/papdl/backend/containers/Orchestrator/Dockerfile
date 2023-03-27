@@ -18,7 +18,6 @@ ENV PATH="/home/${local_user}/.local/bin:${PATH}"
 RUN mkdir /home/${local_user}/app
 WORKDIR /home/${local_user}/app
 
-ADD app /home/${local_user}/app
 
 # FORWARD INPUT
 EXPOSE 8765
@@ -26,3 +25,4 @@ EXPOSE 8765
 COPY requirements.txt requirements.txt
 RUN pip install --user --upgrade pip
 RUN pip install --user --no-cache-dir -r requirements.txt
+ADD app /home/${local_user}/app

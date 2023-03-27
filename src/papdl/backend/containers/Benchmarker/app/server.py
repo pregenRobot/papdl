@@ -27,7 +27,7 @@ class Config(TypedDict):
 
 config: Config
 
-INPUT_MULTIPLIER = 4
+INPUT_MULTIPLIER = 6
 
 
 def load_benchmark_configs()->Config:
@@ -48,14 +48,22 @@ def isDebug()->bool:
 def get_available_memory():
     return psutil.virtual_memory().free
 
-# https://gist.github.com/jamesmishra/34bac09176bc07b1f0c33886e4b19dc7
-def memory_usage(model, *, batch_size: int):
+def model_memory_usage(model, *, batch_size:int):
+    trainable_count = sum(
+        [tf.keras.backend.count_params(p) for p in model.trainable_weights]
+    )
+    non_trainable_count = sum(
+        [tf.keras.backend.count_params(p) for p in model.non_trainable_weights]
+    )
+    return trainable_count + non_trainable_count
+
+def hidden_layer_input_usage(model, *, batch_size: int):
     default_dtype = tf.keras.backend.floatx()
     shapes_mem_count = 0
     internal_model_mem_count = 0
     for layer in model.layers:
         if isinstance(layer, tf.keras.Model):
-            internal_model_mem_count += memory_usage(
+            internal_model_mem_count += hidden_layer_input_usage(
                 layer, batch_size=batch_size
             )
         single_layer_mem = tf.as_dtype(layer.dtype or default_dtype).size
@@ -67,21 +75,17 @@ def memory_usage(model, *, batch_size: int):
                 continue
             single_layer_mem *= s
         shapes_mem_count += single_layer_mem
-
-    trainable_count = sum(
-        [tf.keras.backend.count_params(p) for p in model.trainable_weights]
-    )
-    non_trainable_count = sum(
-        [tf.keras.backend.count_params(p) for p in model.non_trainable_weights]
-    )
-
-    total_memory = (
+    
+    return (
         batch_size * shapes_mem_count
         + internal_model_mem_count
-        + trainable_count
-        + non_trainable_count
     )
-    return total_memory
+
+def get_input_memory_multiplier(dimensions):
+    return np.prod(np.array(dimensions)) * INPUT_MULTIPLIER
+
+def total_memory_usage(model,dimensions, *, batch_size:int):
+    return model_memory_usage(model,batch_size=batch_size) + hidden_layer_input_usage(model,batch_size=batch_size) + get_input_memory_multiplier(dimensions)
 
 def load_network_benchmark_ips() -> List[str]:
     target_networks = environ.get("PAPDL_WORKERS").split(" ")
@@ -123,6 +127,7 @@ def benchmark_network(papdl_workers:List[str]) -> Dict:
         print(result[ip],flush=True)
         del client
     return result
+
     
 def single_model_benchmark(args:Dict):
     mp = args["mp"]
@@ -131,24 +136,30 @@ def single_model_benchmark(args:Dict):
     
     free_memory = get_available_memory()
     model:tf.keras.Model = load_model(mp)
-    model_memory_usage = memory_usage(model=model,batch_size=mtbs)
     model_name = model.name
     dimensions = (mtbs,) + model.input_shape[1:]
+    total = total_memory_usage(model=model,dimensions=dimensions, batch_size=mtbs)
     print(f"Loaded model: {model_name} from path: {mp} with input_dims: {dimensions}",flush=True)
     
-    if(model_memory_usage > free_memory * fmm):
-        print(f"Skipping benchmarking as memory threshold {model_memory_usage} has met {free_memory}.",flush=True)
+    if(total > free_memory * fmm):
+        print(f"Skipping benchmarking as memory threshold {total} has met {free_memory}.",flush=True)
+
         result = {}
+
         result["benchmark_size"] = float("inf")
         result["benchmark_time"] = float("inf")
-        result["benchmark_memory_usage"] = model_memory_usage
+
+        result["benchmark_model_memory_usage"] = model_memory_usage(model,batch_size=mtbs)
+        result["benchmark_hidden_and_input_memory_usage"] = hidden_layer_input_usage(model,batch_size=mtbs)
+        result["benchmark_input_memory_multiplier"] = get_input_memory_multiplier(dimensions)
         result["model_name"] = model_name
+
         del model
         tf.compat.v1.reset_default_graph()
         gc.collect()
         return result
         
-    print(f"Running benchmarking as memory threshold {free_memory} has not been met for mode {model_memory_usage}")
+    print(f"Running benchmarking as memory threshold {free_memory} has not been met for mode {total}")
     sample_input = np.random.random_sample(dimensions)
     start = time_ns()
     for i in range(mtbs):
@@ -158,12 +169,18 @@ def single_model_benchmark(args:Dict):
     end = time_ns()
     output:np.ndarray = model(sample_input,training=False)
     size = asizeof(output)
+
     result = {}
+
     result["benchmark_size"] = size
     result["benchmark_time"] = (end - start) / mtbs
-    result["benchmark_memory_usage"] = model_memory_usage
+
+    result["benchmark_model_memory_usage"] = model_memory_usage(model,batch_size=mtbs)
+    result["benchmark_hidden_and_input_memory_usage"] = hidden_layer_input_usage(model,batch_size=mtbs)
+    result["benchmark_input_memory_multiplier"] = get_input_memory_multiplier(dimensions)
+
     result["model_name"] = model_name
-    
+
     del model
     del output
     del sample_input
@@ -185,9 +202,16 @@ def benchmark_models(model_paths=model_paths):
         completed_pool_results = pool_result.get()
         for r in completed_pool_results:
             result[r["model_name"]] = {}
+
             result[r["model_name"]]["benchmark_size"] = r["benchmark_size"]
+
             result[r["model_name"]]["benchmark_time"] = r["benchmark_time"]
-            result[r["model_name"]]["benchmark_memory_usage"] = r["benchmark_memory_usage"]
+
+            result[r["model_name"]]["benchmark_model_memory_usage"] = r["benchmark_model_memory_usage"]
+
+            result[r["model_name"]]["benchmark_hidden_and_input_memory_usage"] = r["benchmark_hidden_and_input_memory_usage"]
+
+            result[r["model_name"]]["benchmark_input_memory_multiplier"] = r["benchmark_input_memory_multiplier"]
     return result
         
 

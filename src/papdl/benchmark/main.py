@@ -15,9 +15,9 @@ import dill as pickle
 @click.option("-s","--startup_timeout",type=int,default=6000)
 
 @click.option("-b","--model_test_batch_size",type=int,default=1)
-@click.option("-r","--model_test_number_of_repeats",type=int,default=100)
+@click.option("-r","--model_test_number_of_repeats",type=int,default=10)
 @click.option("-d","--bandwidth_test_duration_sec",type=int,default=1)
-@click.option("-l","--latency_test_count",type=int,default=1000)
+@click.option("-l","--latency_test_count",type=int,default=100)
 @click.option("-m","--free_memory_multiplier",type=float,default=0.9)
 #TODO: search constraints
 def benchmark(

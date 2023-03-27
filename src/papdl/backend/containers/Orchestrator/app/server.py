@@ -17,12 +17,12 @@ from asyncio import Future
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '3'
 import uuid
 import requests
-from sanic.log import logger
 import aiohttp
 import uproot
 from time import time_ns
 import asyncstdlib as asynclib
-import lz4
+import lz4.frame
+from sanic.log import logger
 
 from websockets.legacy.client import Connect
 
@@ -79,15 +79,20 @@ app.config.RESPONSE_TIMEOUT = sys.maxsize
 @app.websocket("/predict")
 async def record_response(request:Request,ws:Websocket):
     async for data in ws:
+        logger.info("RECEIVED PREDICT!")
         requestId:str
         try:
-            decompressed_buff = io.BytesIO
+            decompressed_buff = io.BytesIO()
             decompressed_buff.write(lz4.frame.decompress(data))
             decompressed_buff.seek(0)
             requestId = decompressed_buff.read(36).decode("utf-8")
-            data = np.load(decompressed_buff)
+            logger.info("DECOMPRESSED!")
+            logger.info(requestId)
+            # data = np.load(decompressed_buff)
+            # logger.info("LOADED!")
+            # logger.info(data.shape)
             async with app.ctx.rrm_lock:
-                app.ctx.request_response_map[requestId].set_result(data)
+                app.ctx.request_response_map[requestId].set_result(decompressed_buff.read())
         except Exception as e:
             logger.error(traceback.format_exc())
             async with app.ctx.rrm_lock:
@@ -95,14 +100,14 @@ async def record_response(request:Request,ws:Websocket):
 
 @app.post("/input")
 async def make_prediction(request:Request):
+    logger.info("INPUT REQUEST!")
     try:
         request_buff = io.BytesIO()
-        request_buff.write(request.body)
         request_buff.write(request.body)
         request_buff.seek(0)
         array:np.ndarray = np.load(request_buff)
         expected_input_dims = app.ctx.input_dims
-        
+
         if len(expected_input_dims) + 1 != len(array.shape) or array.shape[1:] != expected_input_dims:
             raise ValueError()
         
@@ -111,21 +116,21 @@ async def make_prediction(request:Request):
         send_buff.write(bytes(request_id,"utf-8"))
         send_buff.write(request.body)
         send_buff.seek(0)
-        compressed_buff = lz4.frame.compress(send_buff.read())
+        
         
         loop = asyncio.get_running_loop()
         response_future = loop.create_future()
         async with app.ctx.rrm_lock:
             app.ctx.request_response_map[request_id] = response_future
-        await app.ctx.forward_connection.send(compressed_buff)
+        await app.ctx.forward_connection.send(lz4.frame.compress(send_buff.read()))
+        logger.info("WAITING!")
         await response_future
-        response_buff = io.BytesIO()
-        np.save(response_buff, response_future.result())
-        response_buff.seek(0)
-        return response.raw(body=response_buff, status = HTTPStatus.OK)
+        return response.raw(body=response_future.result(), status = HTTPStatus.OK)
     except ValueError as e:
+        logger.error(traceback.format_exc())
         return response.raw(body="Input dimensions does not match the model",status=HTTPStatus.BAD_REQUEST)
     except Exception as e:
+        logger.error(traceback.format_exc())
         return response.json(body=e,status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     
@@ -187,4 +192,4 @@ async def queryworker_healthcheck(request:Request):
 
 
 if __name__ == "__main__":
-    app.run(host=CURR_HOST,port=8765,access_log=True)
+    app.run(host=CURR_HOST,port=8765,access_log=True,debug=True)
