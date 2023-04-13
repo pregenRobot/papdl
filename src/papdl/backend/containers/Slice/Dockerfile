@@ -19,7 +19,6 @@ RUN mkdir /home/${local_user}/model
 RUN mkdir /home/${local_user}/app
 WORKDIR /home/${local_user}/app
 
-COPY model /home/${local_user}/model
 
 # FORWARD INPUT
 EXPOSE 8765
@@ -28,3 +27,4 @@ COPY requirements.txt requirements.txt
 RUN pip install --user --upgrade pip
 RUN pip install --user --no-cache-dir -r requirements.txt
 ADD app /home/${local_user}/app
+COPY model /home/${local_user}/model

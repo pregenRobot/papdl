@@ -21,7 +21,6 @@ from keras import Model
 import getpass
 import traceback
 import uproot
-import gc
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '3'
 
@@ -81,7 +80,6 @@ async def forward(websocket):
             print("SENDING!",flush=True)
             await forward_connection.send(lz4.frame.compress(output_buff.read()))
             print("SENT!",flush=True)
-            gc.collect()
         except:
             logger.error("Caught Exception! Dropping input...")
             logger.error(traceback.format_exc())

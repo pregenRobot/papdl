@@ -18,7 +18,7 @@ import dill as pickle
 @click.option("-r","--model_test_number_of_repeats",type=int,default=10)
 @click.option("-d","--bandwidth_test_duration_sec",type=int,default=1)
 @click.option("-l","--latency_test_count",type=int,default=100)
-@click.option("-m","--free_memory_multiplier",type=float,default=0.9)
+@click.option("-m","--free_memory_multiplier",type=float,default=0.8)
 #TODO: search constraints
 def benchmark(
     sliced_model_path:str,

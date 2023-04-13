@@ -1,4 +1,4 @@
-from time import time_ns
+from time import time
 import numpy as np
 from getpass import getuser
 from glob import glob
@@ -49,6 +49,24 @@ def get_available_memory():
     return psutil.virtual_memory().free
 
 def model_memory_usage(model, *, batch_size:int):
+    default_dtype = tf.keras.backend.floatx()
+    shapes_mem_count = 0
+    internal_model_mem_count = 0
+    for layer in model.layers:
+        if isinstance(layer, tf.keras.Model):
+            internal_model_mem_count += model_memory_usage(
+                layer, batch_size=batch_size
+            )
+        single_layer_mem = tf.as_dtype(layer.dtype or default_dtype).size
+        out_shape = layer.output_shape
+        if isinstance(out_shape, list):
+            out_shape = out_shape[0]
+        for s in out_shape:
+            if s is None:
+                continue
+            single_layer_mem *= s
+        shapes_mem_count += single_layer_mem 
+
     trainable_count = sum(
         [tf.keras.backend.count_params(p) for p in model.trainable_weights]
     )
@@ -133,6 +151,7 @@ def single_model_benchmark(args:Dict):
     mp = args["mp"]
     fmm = args["fmm"]
     mtbs = args["mtbs"]
+    mtnor = args["mtnor"]
     
     free_memory = get_available_memory()
     model:tf.keras.Model = load_model(mp)
@@ -161,12 +180,12 @@ def single_model_benchmark(args:Dict):
         
     print(f"Running benchmarking as memory threshold {free_memory} has not been met for mode {total}")
     sample_input = np.random.random_sample(dimensions)
-    start = time_ns()
-    for i in range(mtbs):
+    start = time()
+    for i in range(mtnor):
         tmp_out = model(sample_input,training=False)
         del tmp_out
         gc.collect()
-    end = time_ns()
+    end = time()
     output:np.ndarray = model(sample_input,training=False)
     size = asizeof(output)
 
@@ -196,7 +215,14 @@ def benchmark_models(model_paths=model_paths):
     with contextlib.closing(Pool(1)) as po:
         pool_args = []
         for mp in model_paths:
-            pool_args.append({"mp":mp, "fmm":config["free_memory_multiplier"], "mtbs": config["model_test_batch_size"]})
+            pool_args.append(
+                {
+                    "mp":mp, 
+                    "fmm":config["free_memory_multiplier"], 
+                    "mtbs": config["model_test_batch_size"],
+                    "mtnor": config["model_test_number_of_repeats"]
+                }
+            )
 
         pool_result = po.map_async(single_model_benchmark, pool_args)
         completed_pool_results = pool_result.get()

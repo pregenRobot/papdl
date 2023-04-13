@@ -22,7 +22,7 @@ def deploy(
         configuration:Configuration = None
         with open(configuration_path,"rb") as f:
             configuration = pickle.load(f)
-        print(configuration["blocks"])
+        logger.info(configuration["blocks"])
         deploy_configuration(configuration,debug)
     except Exception:
         logger.error(traceback.format_exc())

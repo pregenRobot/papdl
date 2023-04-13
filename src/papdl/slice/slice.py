@@ -37,7 +37,6 @@ def get_output_of_layer(layer, new_input, starting_layer_name):
         pl_outs.extend([get_output_of_layer(
             pl, new_input, starting_layer_name)])
 
-    print(type(layer),type(pl_outs[0]),type(pl_outs))
     out = layer(pl_outs[0] if len(pl_outs) == 1 else pl_outs)
     layer_outputs[layer.name] = out
     return out

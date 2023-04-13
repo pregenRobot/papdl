@@ -10,6 +10,9 @@ from tabulate import tabulate
 from tqdm import tqdm
 import math
 import pickle
+import psutil
+import gc
+from time import sleep
 
 
 class Layer():
@@ -85,7 +88,7 @@ class SearchConstraints():
     def coarsce_type(dict_to_coersce: Dict[str, str]) -> Dict[Layer, Worker]:
         result: Dict[Layer, Worker] = {}
         for layer_str, worker_str in dict_to_coersce.items():
-            result[Layer(name=layer_str, memory_usage=None)] = Worker(
+            result[Layer(name=layer_str, model_memory_usage=None,hidden_memory_usage=None,io_memory_usage=None)] = Worker(
                 name=worker_str, free_memory=None)
         return result
 
@@ -146,29 +149,30 @@ class Configurer():
 
     def tabulated_print(self, configuration: Configuration):
         slice_blocks: List[SliceBlock] = configuration["blocks"]
-        print(slice_blocks)
+        # print(slice_blocks)
 
         table = []
-        table.append(["Slice Indices", "Device", "Model Memory Usage (MB)",
-                     "Hidden Memory Usage (MB)", "IO Memory Usage (MB)"])
+        table.append(["Slice Indices", "Device", "Device Free Memory (MB)", "Model Memory Usage (MB)",
+                     "Hidden Layer Memory Usage (MB)", "IO Memory Usage (MB)"])
         sb: SliceBlock
         for sb in slice_blocks:
             table.append(
                 [str(sb.slice_index),
                  sb.device.name,
+                 sb.device.free_memory / 1_000_000 * configuration["benchmark_preferences"]["free_memory_multiplier"],
                  sum([
-                     l.model_memory_usage/1_000_000
+                     l.model_memory_usage
                      for l in sb.layers
-                 ]),
+                 ]) / 1_000_000,
                  sum([
-                     l.hidden_memory_usage/1_000_000
+                     l.hidden_memory_usage
                      for l in sb.layers
-                 ]),
-                 sb.layers[0].io_memory_usage/1_000_000
+                 ]) / 1_000_000,
+                 sb.layers[0].io_memory_usage / 1_000_000
                  ]
             )
         self.logger.info(
-            tabulate(table, headers="firstrow", tablefmt="outline"))
+            "\n" + tabulate(table, headers="firstrow", tablefmt="outline"))
         self.logger.info(f"PENALTY: {configuration['penalty']}")
 
     class DecisionNode():
@@ -182,7 +186,7 @@ class Configurer():
 
         def __lt__(self, other):
             return False
-
+        
         def __hash__(self) -> int:
             if self.model is None:
                 return hash("NULL" + "-" + self.device.name)
@@ -253,8 +257,8 @@ class Configurer():
 
         node: Configurer.DecisionNode
         for node in path:
-            for model, device in constraints["layer_must_be_in_device"].items():
-                if model == node.model and device == node.deivce:
+            for model, device in constraints["layer_must_not_be_in_device"].items():
+                if model == node.model and device == node.device:
                     return False
 
         node: Configurer.DecisionNode
@@ -289,14 +293,19 @@ class Configurer():
         return jump_count
 
     def __free_memory_variance(path: List[DecisionNode]):
-        node: Configurer.DecisionNoe
+        node: Configurer.DecisionNode
         worker_memory_usage: Dict[Worker, int] = {}
+
+        prevDevice:Worker = path[0].device
         for node in path:
             if node.device not in worker_memory_usage.keys():
                 worker_memory_usage[node.device] = 0
             if node.model is None:
                 continue
-            worker_memory_usage[node.device] += node.model.memory_usage
+            worker_memory_usage[node.device] += node.model.model_memory_usage + node.model.hidden_memory_usage
+            if(prevDevice != node.device):
+                worker_memory_usage[node.device] += node.model.io_memory_usage
+                
 
         average = [memory_usage / worker.free_memory for worker,
                    memory_usage in worker_memory_usage.items()]
@@ -318,17 +327,17 @@ class Configurer():
         width: int
     ) -> Union[OptimalPath, None]:
         visited = set()
-        queue = [(0, 0, start_node, [], visited)]
+        queue = [(0, start_node, [], visited)]
         frontier_depth = 1
         with tqdm(total=depth + 2) as pbar:
             while queue:
-
-                _, penalty, current_node, traversed_nodes, visited = heapq.heappop(
+                penalty, current_node, traversed_nodes, visited = heapq.heappop(
                     queue)
+                
 
                 if current_node in visited and current_node == start_node:
                     pbar.update(1)
-                    return Configurer.OptimalPath(path=traversed_nodes, penalty=penalty)
+                    return Configurer.OptimalPath(path=traversed_nodes + [current_node], penalty=penalty)
 
                 if current_node not in visited:
                     visited.add(current_node)
@@ -338,25 +347,30 @@ class Configurer():
                         new_penalty = penalty + p.penalty
                         new_path = traversed_nodes + [p.node]
 
-                        # f = new_penalty + Configurer.__free_memory_variance(new_path) + Configurer.__jumps(new_path)
-
-                        # f = new_penalty + 1 / p.node.device.free_memory + Configurer.__jumps(new_path)
-                        f = new_penalty
 
                         if Configurer.__valid_path(new_path, constraints, benchmark_pref) and new_penalty != float('inf'):
-
                             heapq.heappush(
-                                queue, (f, new_penalty, p.node, traversed_nodes, visited.copy()))
+                                queue, (new_penalty, p.node, traversed_nodes, visited.copy()))
+                            
+                        else:
+                            pass
+
                         if len(new_path) > frontier_depth:
                             pbar.update(1)
                             frontier_depth = len(new_path)
+                        
+                        # if psutil.virtual_memory().free >> 30 <= 1:
+                        #     queue = queue[:len(queue)//2]
+                        #     heapq.heapify(queue)
+                        #     gc.collect()
+                # print("=====")
         return None
 
     def __calculate_performance_penalty(
             benchmark_result: Dict,
             destination: Worker,
             model: Layer) -> float:
-        return benchmark_result[destination.name]["model_performance"][model.name]["benchmark_time"] / 1_000_000
+        return benchmark_result[destination.name]["model_performance"][model.name]["benchmark_time"]
 
     def __calculate_network_penalty(
         benchmark_result: Dict,
@@ -365,7 +379,7 @@ class Configurer():
         filesize_to_send: int
     ) -> float:
         stats = benchmark_result[source.name]["network_performance"][destination.name]
-        latency = stats["latency"]["rtt_avg_ms"] / 1000
+        latency = stats["latency"]["rtt_avg_ms"] / 1000 # Get in seconds
         bandwidth = stats["bandwidth"]["sent_bps"]
         return (latency + (filesize_to_send / bandwidth))
 
@@ -489,8 +503,6 @@ class Configurer():
         # j    if (n.model is not None)
         # j    else None])
         # print([m.name for m in models])
-        print([n.model.name if n.model is not None else None for n in nodes], flush=True)
-        print([model.name if model is not None else None for model in models], flush=True)
         for n in nodes:
             search = [
                 m for m in models if n.model is not None and m.name == n.model.name]
@@ -515,7 +527,7 @@ class Configurer():
         r = 2
         slices: List[SliceBlock] = []
         while r < len(op.path):
-
+            # print((l,r,slices))
             if op.path[r].device != op.path[l].device:
                 nodes_slice = op.path[l:r]
                 s = SliceBlock(
@@ -523,7 +535,7 @@ class Configurer():
                         n.model
                         for n in nodes_slice
                     ],
-                    slice_index=(l, r),
+                    slice_index=(l-1, r-1),
                     device=op.path[l].device,
                     model=Configurer.__merge_models(
                         Configurer.__fetch_model_from_nodes(
@@ -538,8 +550,8 @@ class Configurer():
             return [
                 SliceBlock(
                     layers=[n.model for n in op.path if n.model is not None],
-                    slice_index=(0, len(op.path)),
-                    device=op.path[0].device,
+                    slice_index=(0, len(op.path)-1),
+                    device=op.path[1].device,
                     model=Configurer.__merge_models(
                         Configurer.__fetch_model_from_nodes(
                             [n for n in op.path if n.model is not None], models)
@@ -561,7 +573,11 @@ class Configurer():
         devices: List[Worker] = [
             Worker(k, benchmark_result[k]["free_memory"]) for k in list(
                 benchmark_result.keys())]
+        
+        
 
+        self.logger.debug("Benchmark Result")
+        self.logger.debug(benchmark_result)
         sd: Worker = None
         if isinstance(source_device, Worker):
             sd = source_device
@@ -589,6 +605,7 @@ class Configurer():
                     io_memory_usage=model_dict["benchmark_input_memory_multiplier"]
                 )
             )
+        # self.tabulated_print_devices(devices,benchmark_pref)
 
         global visited_node_map
 
@@ -619,8 +636,9 @@ class Configurer():
             depth=depth,
             width=width
         )
-        with open("shortest_loop_cache.pickle", "wb+") as f:
-            pickle.dump(shortest_loop, f)
+        
+        # [print((n.device.name, n.model.name if n.model is not None else None)) for n in shortest_loop.path]
+        
 
         # shortest_loop = None
 
