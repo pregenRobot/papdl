@@ -9,3 +9,4 @@ src/papdl/backend/registry_volume/docker
 scripts/*.pickle
 scripts/models/**
 !scripts/.stub
+*.ipynb
